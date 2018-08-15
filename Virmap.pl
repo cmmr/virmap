@@ -26,7 +26,7 @@ my @readR;
 my @interleaved;
 my $gbBlastx;
 my $gbBlastn;
-my $virBt2;
+my $virBbmap;
 my $virDmnd;
 my $taxaJson;
 my $outputDir;
@@ -65,7 +65,7 @@ my $startMsg = "Virmap called with: $commandLineArgs\n";
 print STDERR "$startMsg\n";
 
 
-GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBt2=s" => \$virBt2, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hgm" => \$hgm, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm);
+GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBbmap=s" => \$virBbmap, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hgm" => \$hgm, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm);
 
 if ($useMegaHit) {
 	$useTadpole = 0;
@@ -129,8 +129,8 @@ unless ($gbBlastn or $noTaxaDep) {
 	print STDERR "Nucleotide Genbank database not defined in --gbBlastn\n";
 	$fail = 1;
 }
-unless ($virBt2 or $noNucMap) {
-	print STDERR "Virus Bowtie2 database not defined in --virBt2\n";
+unless ($virBbmap or $noNucMap) {
+	print STDERR "Virus Bowtie2 database not defined in --virBbmap\n";
 	$fail = 1;
 }
 unless ($virDmnd or $noAaMap) {
@@ -282,7 +282,7 @@ unless ($noNucMap) {
 		}
 	}
 	$sem->wait;
-	system("bbmap.sh -Xmx$ram noheader=t threads=$threads in=$fileToMap path=$virBt2 noheader=t ambiguous=all ignorefrequentkmers=f slow=t excludefraction=0 greedy=f usejni=t maxsites2=10000000 minid=$bbmapPct outm=stdout.sam secondary=t sssr=$bbmapRad maxsites=100000000 sam=1.3 nmtag=t 32bit=t statsfile=$prefix.bbmap.err 2>$tmpPrefix.bbmap.err | zstd -q -c -T$threads > $tmpPrefix.nuc.sam.zst");
+	system("bbmap.sh -Xmx$ram noheader=t threads=$threads in=$fileToMap path=$virBbmap noheader=t ambiguous=all ignorefrequentkmers=f slow=t excludefraction=0 greedy=f usejni=t maxsites2=10000000 minid=$bbmapPct outm=stdout.sam secondary=t sssr=$bbmapRad maxsites=100000000 sam=1.3 nmtag=t 32bit=t statsfile=$prefix.bbmap.err 2>$tmpPrefix.bbmap.err | zstd -q -c -T$threads > $tmpPrefix.nuc.sam.zst");
 	system("zstd -q -dc $tmpPrefix.nuc.sam.zst | sort -k3,3 -k4,4n --buffer-size=$RAM --parallel=$threads --compress-program=lz4 | lbzip2 -c -n$threads > $prefix.nuc.sam.bz2");
 	system("cat $tmpPrefix.bbmap.err >> $prefix.bbmap.err");
 	$sem->post;
