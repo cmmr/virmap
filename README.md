@@ -33,8 +33,10 @@ Installed programs:
 diamond (https://github.com/bbuchfink/diamond)<br />
 bbtools (https://jgi.doe.gov/data-and-tools/bbtools)<br />
 blast+ (ftp://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST)<br />
+lbzip2 (http://lbzip2.org/download)<br />
 MEGAHIT (https://github.com/voutcn/megahit)<br />
 normalize-by-median.py (https://github.com/dib-lab/khmer)<br />
+pigz (https://github.com/madler/pigz)<br />
 vsearch (https://github.com/torognes/vsearch)<br />
 zstd (https://github.com/facebook/zstd)<br />
 
