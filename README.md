@@ -3,7 +3,10 @@
 The full VirMAP source code is being cleaned and documented. It will be released as soon as possible. 
 
 The paper is published at Nature Communications:
-https://doi.org/10.1038/s41467-018-05658-8
+https://doi.org/10.1038/s41467-018-05658-8<br />
+<br />
+
+<b>Maximal viral information recovery from sequence data using VirMAP</b>
 
 Nadim J Ajami1,2, Ω, Matthew C. Wong1,2, Ω, Matthew C. Ross1,2, Richard E. Lloyd2, Joseph F. Petrosino1,2.
  
@@ -12,13 +15,16 @@ Nadim J Ajami1,2, Ω, Matthew C. Wong1,2, Ω, Matthew C. Ross1,2, Richard E. Llo
  
 Corresponding author:
  
-Nadim J. Ajami
+Nadim J. Ajami<br />
 nadimajami@gmail.com
  
 Abstract
  
 Accurate classification of the human virome is critical to a full understanding of the role viruses play in health and disease. This implies the need for sensitive, specific, and practical pipelines that return precise outputs while still enabling case-specific post hoc analysis. Viral taxonomic characterization from metagenomic data suffers from high background noise and signal crosstalk that confounds current methods. Here we develop VirMAP that overcomes these limitations using techniques that merge nucleotide and protein information to taxonomically classify viral reconstructions independent of genome coverage or read overlap. We validate VirMAP using published data sets and viral mock communities containing RNA and DNA viruses and bacteriophages. VirMAP offers opportunities to enhance metagenomic studies seeking to define virome-host interactions, improve biosurveillance capabilities, and strengthen molecular epidemiology reporting.
 
+Cite as:
+Ajami, N. J., Wong, M. C., Ross, M. C., Lloyd, R. E., & Petrosino, J. F. (2018). Maximal viral information recovery from sequence data using VirMAP. Nature Communications, 9(1), 3205. https://doi.org/10.1038/s41467-018-05658-8
+<br />
 
 Rough Requirements:<br />
 
