@@ -3,6 +3,7 @@
 use warnings;
 use strict;
 use Getopt::Long;
+use Pod::Usage;
 use FAlite;
 use File::Temp qw/tempdir/;
 use Time::HiRes qw(time);
@@ -33,7 +34,7 @@ my $outputDir;
 my $fastaInput;
 my $sampleName;
 my $bigRam;
-my $hgm;
+my $hugeRam;
 my $loose;
 my $bbMapLimit = 4;
 my $threads = 4;
@@ -62,10 +63,20 @@ my $infoFloor = 300;
 
 
 my $startMsg = "Virmap called with: $commandLineArgs\n";
+
+unless (scalar(@ARGV)) {
+	my $help = <<'HELPSTRING';
+usage: Virmap.pl [options] <databases> --readF ReadSet1_R1.fastq.bz2 ReadSet2_R1.fastq.gz --readR ReadSet1_R2.fastq.bz2 ReadSet2_R2.fastq.bz2 --readUnpaired ReadsUnpaired.fastq.bz2
+
+HELPSTRING
+
+print "$help\n";
+exit();
+}
 print STDERR "$startMsg\n";
 
 
-GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBbmap=s" => \$virBbmap, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hgm" => \$hgm, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm);
+GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBbmap=s" => \$virBbmap, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hugeRam" => \$hugeRam, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm);
 
 if ($useMegaHit) {
 	$useTadpole = 0;
@@ -191,7 +202,7 @@ if ($bigRam) {
 	$megaHitRam = 107374182400;
 	$diamondParams = "-b 6"
 }
-if ($hgm) {
+if ($hugeRam) {
 	print STDERR "Enabling huge RAM\n";
 	$ram = "1200g";
 	$RAM = "120G";
