@@ -1,6 +1,6 @@
 # VirMAP
 
-The full VirMAP source code is being cleaned and documented. It will be released as soon as possible. 
+The full VirMAP source code is released, documentation and database constructor to come.
 
 The paper is published at Nature Communications:
 https://doi.org/10.1038/s41467-018-05658-8<br />
