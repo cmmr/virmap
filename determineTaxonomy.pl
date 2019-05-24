@@ -17,7 +17,6 @@ use Sereal;
 use Statistics::Basic qw(:all);
 
 
-
 my $tmpdir = tempdir( DIR => "/dev/shm", CLEANUP => 1);
 
 
@@ -565,6 +564,7 @@ sub worker {
 		my $nonFilterAddMax = 0;
 		my $protHits = 0;
 		my $nucHits = 0;
+		my $posPerGroupHits = {};
 		($protHits, $maxAddAA) = readBlastLines($reference, $dbAA, $topPerPosAA, $topPerPosPerTaxaAA, $parents, $ranks, $names, $corrections, $ok, $overallScoresAA, $overallScores, $maxPossAA, $maxPoss, $groups, \$selfMax, \$selfMaxAA, $aaScale, $codons, $repPerPosPerTaxaAA, $decoder, {}, $tmpdir, $scaffold, $blosum62, $singleMode, $protLambda, $protK, 0);
 		($nucHits, $maxAddNucl) = readBlastLines($reference, $dbNUC, $topPerPosNucl, $topPerPosPerTaxaNucl, $parents, $ranks, $names, $corrections, $ok, $overallScoresNucl, $overallScores, $maxPossNucl, $maxPoss, $groups, \$selfMax, \$selfMaxNucl, $nucScale, {}, $repPerPosPerTaxaNucl, $decoder, $topPerPosAA, $tmpdir, $scaffold, {}, $singleMode, $nucLambda, $nucK, $expectedBitPerNuc);
 		my @letters = split //, $scaffold;
@@ -604,6 +604,7 @@ sub worker {
 			next;
 		}
 		for (my $pos = 0; $pos < scalar(@letters); $pos++) {
+			my $hitGroups = {};
 			if (not defined $letters[$pos]) {
 				next;
 			}
@@ -629,6 +630,7 @@ sub worker {
 			if (exists $repPerPosPerTaxaAA->{$pos}) {
 				foreach my $taxa (keys %{$repPerPosPerTaxaAA->{$pos}}) {
 					$repPerGroup->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
+					$hitGroups->{$taxa2Group->{$taxa}} = 1;
 					$localGroupRep->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
 					$taxaRepAA->{$taxa} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
 					$taxaRep->{$taxa} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
@@ -638,6 +640,7 @@ sub worker {
 			if (exists $repPerPosPerTaxaNucl->{$pos}) {
 				foreach my $taxa (keys %{$repPerPosPerTaxaNucl->{$pos}}) {
 					$repPerGroup->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
+					$hitGroups->{$taxa2Group->{$taxa}} = 1;
 					$localGroupRep->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
 					$taxaRep->{$taxa} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
 					$taxaRepNucl->{$taxa} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
@@ -717,6 +720,12 @@ sub worker {
 			} else {
 				$badTop++;
 			}
+			foreach my $group (keys %$hitGroups) {
+				$posPerGroupHits->{$group}++;
+			}
+		}
+		foreach my $group (keys %$repPerGroup) {
+			$repPerGroup->{$group} = log10($repPerGroup->{$group}) * $posPerGroupHits->{$group};
 		}
 		my $totalScore = 0;
 		foreach my $val (values %$topPerPosAA) {
