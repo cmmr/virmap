@@ -169,7 +169,7 @@ while (1) {
 	my $hitTimeLimit = 0;
 	my $nowTime = time;
 	my $runTime = $nowTime - $startTime;
-	if ($nowTime - $startTime > $timeLimit) {
+	if ($runTime > $timeLimit) {
 		print STDERR "Time limit breached: $runTime seconds elasped, $timeLimit seconds limit\n";
 		$hitTimeLimit = 1;
 	}

@@ -725,7 +725,11 @@ sub worker {
 			}
 		}
 		foreach my $group (keys %$repPerGroup) {
-			$repPerGroup->{$group} = log10($repPerGroup->{$group}) * $posPerGroupHits->{$group};
+			if ($repPerGroup->{$group} > 0) {
+				$repPerGroup->{$group} = log10($repPerGroup->{$group}) * $posPerGroupHits->{$group};
+			} else {
+				$repPerGroup->{$group} = 0;
+			}
 		}
 		my $totalScore = 0;
 		foreach my $val (values %$topPerPosAA) {
