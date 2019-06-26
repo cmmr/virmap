@@ -35,6 +35,8 @@ my $fastaInput;
 my $sampleName;
 my $bigRam;
 my $hugeRam;
+my $krakenFilter;
+my $krakenDb;
 my $loose;
 my $bbMapLimit = 4;
 my $threads = 4;
@@ -76,7 +78,7 @@ exit();
 print STDERR "$startMsg\n";
 
 
-GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBbmap=s" => \$virBbmap, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hugeRam" => \$hugeRam, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit=s" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm);
+GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBbmap=s" => \$virBbmap, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hugeRam" => \$hugeRam, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit=s" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm, "krakenFilter" => \$krakenFilter, "krakenDb=s" => \$krakenDb);
 
 if ($useMegaHit) {
 	$useTadpole = 0;
@@ -422,9 +424,16 @@ if ($useMegaHit or $useTadpole) {
 	}
 	if (-s "$tmpPrefix.contigContainer.fa") {
 		system("renameContigs.pl $tmpPrefix.contigContainer.fa > $tmpPrefix.forDedupe.fa");
-		system("dedupe.sh in=$tmpPrefix.forDedupe.fa out=$prefix.contigs.fa fastawrap=0 threads=1 ordered=t 2>>$tmpPrefix.assembly.err");
+		system("dedupe.sh in=$tmpPrefix.forDedupe.fa out=$tmpPrefix.contigs.fa fastawrap=0 threads=1 ordered=t 2>>$tmpPrefix.assembly.err");
 	} else {
 		system("touch $prefix.contigs.fa");
+	}
+	if ($krakenFilter) {
+		system("kraken2 --db $krakenDb --threads=$threads $tmpPrefix.contigs.fa 2>>$tmpPrefix.assembly.err | cut -f2,3 | lbzip2 -c -n$threads > $tmpPrefix.kraken.out.bz2");
+		system("krakenFilter.pl $tmpPrefix.contigs.fa $tmpPrefix.kraken.out.bz2 $taxaJson > $prefix.contigs.fa 2>>$tmpPrefix.assembly.err");	
+	
+	} else {
+		system("cp $tmpPrefix.contigs.fa $prefix.contigs.fa");
 	}
 	system("$compressStdout $tmpPrefix.assembly.err > $prefix.assembly.err.bz2");
 	$contigs = "$prefix.contigs.fa";
