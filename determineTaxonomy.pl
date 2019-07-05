@@ -6,6 +6,7 @@ use strict;
 use threads;
 use threads::shared;
 use Thread::Queue qw( );
+use Thread::Semaphore;
 use FAlite;
 use English;
 use Cpanel::JSON::XS;
@@ -47,7 +48,7 @@ unless ($infoFloor =~ m/^\d+$/) {
 	die;
 }
 
-
+my $rocksDbAccess = Thread::Semaphore->new(24);
 my $finished :shared;
 $finished = 0;
 my $total :shared;
@@ -195,7 +196,9 @@ sub readBlastLines {
 	my $tid = threads->tid();
 	my $hit = 0;
 	my $goodAfterCycle = {};
+	$rocksDbAccess->down();
 	my $lines = $decoder->decode(decompress($db->get($reference)));
+	$rocksDbAccess->up();
 	my $maxPerAlignPos = {};
 	my $isProt = 0;
 	my $totalHitPerPos = {};
@@ -449,11 +452,13 @@ sub worker {
 	my $startNow = $startQ->dequeue();
 	my $encoder = Sereal::Encoder->new();
 	my $decoder = Sereal::Decoder->new();
+	$rocksDbAccess->down();
 	my $dbAA = RocksDB->new("$tmpdir/AA", { read_only => 1, db_log_dir => '/dev/null', keep_log_file_num => 1}) or die "can't open DB\n";
 	my $dbNUC = RocksDB->new("$tmpdir/NUC", { read_only => 1, db_log_dir => '/dev/null', keep_log_file_num => 1}) or die "can't open DB\n";
 	my $dbTAX = RocksDB->new("$tmpdir/TAX", { read_only => 1, db_log_dir => '/dev/null', keep_log_file_num => 1}) or die "can't open DB\n";
 	my $groups = $decoder->decode(decompress($dbTAX->get("groups")));
 	my $singleMode = $dbTAX->get("singleMode");
+	$rocksDbAccess->up();
 	my $suppressors = {
 		"others" => 1,
 		"unclassified" => 1
@@ -529,6 +534,7 @@ sub worker {
 		unless ($refTaxId) {
 			lockPrintStderr("$reference has no detectable taxId");
 		}
+		$rocksDbAccess->down();
 		my $parents = $decoder->decode(decompress($dbTAX->get("par.$reference")));;
 		my $ranks = $decoder->decode(decompress($dbTAX->get("ran.$reference")));;
 		my $names = $decoder->decode(decompress($dbTAX->get("nam.$reference")));
@@ -536,6 +542,7 @@ sub worker {
 		my $corrections = $decoder->decode(decompress($dbTAX->get("cor.$reference")));
 		my $whiteListed = checkWhiteList($whiteList, $refTaxId, $parents);
 		my $scaffold = $dbTAX->get("scaf.$reference");
+		$rocksDbAccess->up();
 		my $scafEnt = entropy($scaffold);
 		if ($filter and $scafEnt <= 5) {
 			lockPrintStderr("FILTERED: $reference is low complexity $scafEnt bit per triplet");
