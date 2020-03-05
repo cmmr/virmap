@@ -37,7 +37,7 @@ while (my $line = <IN>) {
 		next;
 	}
 	my $group = traceToGroup($groups, $parents, $taxaId);
-	if ($group == 10239 or $group == 12284) {
+	if ($group == 10239 or $group == 12884) {
 		next;
 	}
 	$filter->{$contig} = 1;
