@@ -36,7 +36,7 @@ while (my $line = <IN>) {
 	unless (exists $nuc2FullName->{$lineparts[2]}) {
 		$lineparts[5] =~ s/;.*//g;
 		$splitParts[1] =~ m/;taxId=(\d+)/;
-		$nuc2FullName->{$lineparts[2]} = "gi|NoNucHits|gb|$lineparts[2]|$lineparts[6];taxId=$1";
+		$nuc2FullName->{$lineparts[2]} = "gi|NoNucHits|gb|$lineparts[2]|$lineparts[5];taxId=$1";
 		$nucHits->{$nuc2FullName->{$lineparts[2]}} = 0;
 	}
 	unless (exists $full2parts->{$nuc2FullName->{$lineparts[2]}}->{$splitParts[1]}) {

@@ -641,7 +641,7 @@ sub worker {
 				$rightN = "inf";
 			}
 			if ($diffRightLeft < 0) {
-				if ($leftN >= $rightN) {
+				if (($leftN != 0 or $rightN != 0) and $leftN >= $rightN) {
 					if ($leftStart + $leftOffset + $absAdd > length($leftSequence)) {
 						$failIn = 1;
 						last;
@@ -662,7 +662,7 @@ sub worker {
 					$rightOffset += $absAdd;
 				}
 			} elsif ($diffRightLeft > 0) {
-				if ($rightN >= $leftN) {
+				if (($leftN != 0 or $rightN != 0) and $rightN >= $leftN) {
 					if (($rightStart + $rightOffset + $absAdd) > length($rightSequence)) {
 						$failIn = 1;
 						last

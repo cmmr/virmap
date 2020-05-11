@@ -14,9 +14,9 @@ my $cmd = "cat";
 my $fileType = `file -k $in`;
 
 if ($fileType =~ m/bzip2/) {
-	$cmd = "lbzip2 -d -c -n4";
+	$cmd = "lbzip2 -d -c -n6";
 } elsif ($fileType =~ m/gzip/) {
-	$cmd = "pigz -d -c -p4";
+	$cmd = "pigz -d -c";
 }
 
 open R1, "$cmd $in |";

@@ -35,6 +35,8 @@ my $fastaInput;
 my $sampleName;
 my $bigRam;
 my $hugeRam;
+my $krakenFilter;
+my $krakenDb;
 my $loose;
 my $bbMapLimit = 4;
 my $threads = 4;
@@ -76,7 +78,7 @@ exit();
 print STDERR "$startMsg\n";
 
 
-GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBbmap=s" => \$virBbmap, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hugeRam" => \$hugeRam, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm);
+GetOptions ("interleaved:s{,}" => \@interleaved, "readF:s{,}" => \@readF, "readR:s{,}" => \@readR, "readUnpaired:s{,}" => \@files, "gbBlastx=s" => \$gbBlastx, "gbBlastn=s" => \$gbBlastn, "virBbmap=s" => \$virBbmap, "virDmnd=s" => \$virDmnd, "taxaJson=s" => \$taxaJson, "outputDir=s" => \$outputDir, "fasta" => \$fastaInput, "sampleName=s" => \$sampleName, "threads=i" => \$threads, "tmpdir=s" => \$tmpdir, "bigRam" => \$bigRam, "hugeRam" => \$hugeRam, "whiteList=s" => \$whiteList, "bbMapLimit=s" => \$bbMapLimit, "loose" => \$loose, "improveTimeLimit=s" => \$improveTimeLimit, "useMegahit" => \$useMegaHit, "sensitive" => \$sensitive, "noNucMap" => \$noNucMap, "noAaMap" => \$noAaMap, "noIterImp" => \$noIterative, "skipTaxonomy" => \$skipTaxonomy, "both" => \$bothTadpoleAndMegahit, "noCorrection" => \$noCorrection, "noFilter" => \$noFilter, "noNormalize" => \$noNormalize, "noAssembly" => \$noAssm, "strict" => \$strict, "noMerge" => \$noMerge, "noEntropy" => \$noEntropy, "infoFloor" => \$infoFloor, "keepTemp" => \$keepTemp, "useBbnorm" => \$useBbnorm, "krakenFilter" => \$krakenFilter, "krakenDb=s" => \$krakenDb);
 
 if ($useMegaHit) {
 	$useTadpole = 0;
@@ -189,15 +191,15 @@ if ($fail) {
 unless ($improveTimeLimit =~ m/^\d+$/) {
 	$improveTimeLimit = "36000";	
 }
-my $ram = "30g";
-my $RAM = "30G";
-my $cdHitRam = "28000";
-my $megaHitRam = 30064771072;
+my $ram = "50g";
+my $RAM = "50G";
+my $cdHitRam = "48000";
+my $megaHitRam = 53687091200;
 my $diamondParams = "";
 if ($bigRam) {
 	print STDERR "Enabling big RAM\n";
 	$ram = "100g";
-	$RAM = "60G";
+	$RAM = "100G";
 	$cdHitRam = 100000;
 	$megaHitRam = 107374182400;
 	$diamondParams = "-b 6"
@@ -305,7 +307,7 @@ unless ($noNucMap) {
 
 #align to virus diamond
 unless ($noAaMap) {
-	system("diamond blastx --algo 0 -p $threads -f 101 -q $fileToMap --db $virDmnd --unal 0 --masking 0 --top $diamondRad --id $diamondPct --query-cover 80 -c 1 -l 16 --evalue .1 --freq-sd 250 --index-mode 4 --shapes 1 --quiet -t $tmpdir | grep -v \"^@\" | zstd -q -c -T$threads > $tmpPrefix.aa.sam.zst"); 
+	system("diamond blastx --algo 0 -p $threads -f 101 -q $fileToMap --db $virDmnd --unal 0 --masking 0 --top $diamondRad --id $diamondPct --query-cover 80 -c 1 -l 16 --evalue .1 --freq-sd 250 --index-mode 4 --shapes 1 --verbose -t $tmpdir 2>>$tmpPrefix.buildSuperScaffolds.err | grep -v \"^@\" | zstd -q -c -T$threads > $tmpPrefix.aa.sam.zst"); 
 	system("zstd -q -dc $tmpPrefix.aa.sam.zst | sort -k3,3 -k4,4n --buffer-size=$RAM --parallel=$threads --compress-program=lz4 | lbzip2 -c -n$threads > $prefix.aa.sam.bz2");
 	($timeDiff, $cpuDiff) = timeDiff($timeDiff, $cpuDiff, "diamond to virus");
 } else {
@@ -389,9 +391,9 @@ if ($useMegaHit or $useTadpole) {
 			$megahitInputStr = "-r $tmpPrefix.fa";
 		}
 		unless ($sensitive) {
-			system("megahit $megahitInputStr --min-contig-len 500 -t $threads -m $megaHitRam --tmp-dir $tmpdir -o $tmpPrefix.MegaHitAssm --out-prefix MegaHit --verbose 1>>$tmpPrefix.assembly.err 2>&1");
+			system("megahit $megahitInputStr --min-contig-len 500 -t $threads -m $megaHitRam --tmp-dir $tmpdir -o $tmpPrefix.MegaHitAssm --out-prefix MegaHit 1>>$tmpPrefix.assembly.err 2>&1");
 		} else {
-			system("megahit $megahitInputStr --min-contig-len 500 -t $threads -m $megaHitRam --tmp-dir $tmpdir --presets meta-sensitive -o $tmpPrefix.MegaHitAssm --out-prefix MegaHit --verbose 1>>$tmpPrefix.assembly.err 2>&1");
+			system("megahit $megahitInputStr --min-contig-len 500 -t $threads -m $megaHitRam --tmp-dir $tmpdir --presets meta-sensitive -o $tmpPrefix.MegaHitAssm --out-prefix MegaHit 1>>$tmpPrefix.assembly.err 2>&1");
 		}
 		system("cat $tmpPrefix.MegaHitAssm/MegaHit.contigs.fa >> $tmpPrefix.contigContainer.fa");
 		($timeDiff, $cpuDiff) = timeDiff($timeDiff, $cpuDiff, "megahit assembly");
@@ -422,9 +424,16 @@ if ($useMegaHit or $useTadpole) {
 	}
 	if (-s "$tmpPrefix.contigContainer.fa") {
 		system("renameContigs.pl $tmpPrefix.contigContainer.fa > $tmpPrefix.forDedupe.fa");
-		system("dedupe.sh in=$tmpPrefix.forDedupe.fa out=$prefix.contigs.fa fastawrap=0 threads=1 ordered=t 2>>$tmpPrefix.assembly.err");
+		system("dedupe.sh in=$tmpPrefix.forDedupe.fa out=$tmpPrefix.contigs.fa fastawrap=0 threads=1 ordered=t 2>>$tmpPrefix.assembly.err");
 	} else {
 		system("touch $prefix.contigs.fa");
+	}
+	if ($krakenFilter) {
+		system("kraken2 --db $krakenDb --threads=$threads $tmpPrefix.contigs.fa 2>>$tmpPrefix.assembly.err | cut -f2,3 | lbzip2 -c -n$threads > $tmpPrefix.kraken.out.bz2");
+		system("krakenFilter.pl $tmpPrefix.contigs.fa $tmpPrefix.kraken.out.bz2 $taxaJson > $prefix.contigs.fa 2>>$tmpPrefix.assembly.err");	
+	
+	} else {
+		system("cp $tmpPrefix.contigs.fa $prefix.contigs.fa");
 	}
 	system("$compressStdout $tmpPrefix.assembly.err > $prefix.assembly.err.bz2");
 	$contigs = "$prefix.contigs.fa";
@@ -453,7 +462,7 @@ unless ($noFilter) {
 	##diamond map
 	system("cat $inFile | toUC.pl > $tmpPrefix.forFilter.UC.fa");
 	scaffoldSplit("$tmpPrefix.forFilter.UC.fa", "$tmpPrefix.forDiamondFilter.fa", "diamond filter", 300);
-	system("diamond blastx -q $tmpPrefix.forDiamondFilter.fa --db $gbBlastx -o $tmpPrefix.diamondFilter.out --algo 1 -f 6 --top 5 --tmpdir $tmpdir -e .1 --unal 0 -c 1 -p $threads --verbose 1>>$tmpPrefix.filter.err");
+	system("diamond blastx -q $tmpPrefix.forDiamondFilter.fa --db $gbBlastx -o $tmpPrefix.diamondFilter.out --algo 1 -f 6 --top 5 --tmpdir $tmpdir -e .1 --unal 0 -c 1 -p $threads --verbose 1>>$tmpPrefix.filter.err 2>>$tmpPrefix.filter.err");
 	system("$compressStdout $tmpPrefix.diamondFilter.out > $prefix.diamondFilter.out.bz2");
 	($timeDiff, $cpuDiff) = timeDiff($timeDiff, $cpuDiff, "diamond filter map");
 
@@ -516,11 +525,11 @@ unless ($skipTaxonomy) {
 
 
 	scaffoldSplit("$tmpPrefix.ucBlastInput.fa", "$tmpPrefix.diamondInput.fa", "diamond", 100);
-	system("diamond blastx --algo 1 -q $tmpPrefix.diamondInput.fa --db $gbBlastx --max-target-seqs 100000 --max-hsps 100000 -p $threads --outfmt 6 --verbose -o $tmpPrefix.diamondBlastx.out -e 1e-5 --unal 0 -c 1 --masking 0 --comp-based-stats 0 -t $tmpdir --verbose 1>>$prefix.diamondBlastx.err");
+	system("diamond blastx --algo 1 -q $tmpPrefix.diamondInput.fa --db $gbBlastx --max-target-seqs 100000 --max-hsps 100000 -p $threads --outfmt 6 --verbose -o $tmpPrefix.diamondBlastx.out -e 1e-5 --unal 0 -c 1 --masking 0 --comp-based-stats 0 -t $tmpdir --verbose 1>>$prefix.diamondBlastx.err 2>>$prefix.diamondBlastx.err");
 	system("cat $tmpPrefix.diamondBlastx.out | hitMask.pl $tmpPrefix.ucBlastInput.fa $tmpPrefix.diamondInput.fa > $tmpPrefix.diamondInput.remain.fa");
 	system("cat $tmpPrefix.diamondInput.remain.fa | toUC.pl > $tmpPrefix.diamondInput.remain.UC.fa");
 	scaffoldSplit("$tmpPrefix.diamondInput.remain.UC.fa", "$tmpPrefix.diamondInput.remain.split.fa", "uc.remain", 0);
-	system("diamond blastx --algo 1 -q $tmpPrefix.diamondInput.remain.split.fa --db $gbBlastx --max-target-seqs 100000 --max-hsps 100000 -p $threads --verbose --outfmt 6 -o $tmpPrefix.diamondBlastx.remain.out -e .1 --unal 0 -c 1 --masking 0 --comp-based-stats 0 -t $tmpdir --verbose 1>>$prefix.diamondBlastx.err");
+	system("diamond blastx --algo 1 -q $tmpPrefix.diamondInput.remain.split.fa --db $gbBlastx --max-target-seqs 100000 --max-hsps 100000 -p $threads --verbose --outfmt 6 -o $tmpPrefix.diamondBlastx.remain.out -e .1 --unal 0 -c 1 --masking 0 --comp-based-stats 0 -t $tmpdir --verbose 1>>$prefix.diamondBlastx.err 2>>$prefix.diamondBlastx.err");
 	system("$compressStdout $tmpPrefix.diamondBlastx.out $tmpPrefix.diamondBlastx.remain.out > $prefix.diamondBlastx.out.bz2");
 	($timeDiff, $cpuDiff) = timeDiff($timeDiff, $cpuDiff, "diamond full");
 	

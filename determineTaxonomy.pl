@@ -6,6 +6,7 @@ use strict;
 use threads;
 use threads::shared;
 use Thread::Queue qw( );
+use Thread::Semaphore;
 use FAlite;
 use English;
 use Cpanel::JSON::XS;
@@ -15,7 +16,6 @@ use File::Temp qw/tempdir/;
 use RocksDB;
 use Sereal;
 use Statistics::Basic qw(:all);
-
 
 
 my $tmpdir = tempdir( DIR => "/dev/shm", CLEANUP => 1);
@@ -48,7 +48,7 @@ unless ($infoFloor =~ m/^\d+$/) {
 	die;
 }
 
-
+my $rocksDbAccess = Thread::Semaphore->new(24);
 my $finished :shared;
 $finished = 0;
 my $total :shared;
@@ -196,7 +196,9 @@ sub readBlastLines {
 	my $tid = threads->tid();
 	my $hit = 0;
 	my $goodAfterCycle = {};
+	$rocksDbAccess->down();
 	my $lines = $decoder->decode(decompress($db->get($reference)));
+	$rocksDbAccess->up();
 	my $maxPerAlignPos = {};
 	my $isProt = 0;
 	my $totalHitPerPos = {};
@@ -450,11 +452,13 @@ sub worker {
 	my $startNow = $startQ->dequeue();
 	my $encoder = Sereal::Encoder->new();
 	my $decoder = Sereal::Decoder->new();
+	$rocksDbAccess->down();
 	my $dbAA = RocksDB->new("$tmpdir/AA", { read_only => 1, db_log_dir => '/dev/null', keep_log_file_num => 1}) or die "can't open DB\n";
 	my $dbNUC = RocksDB->new("$tmpdir/NUC", { read_only => 1, db_log_dir => '/dev/null', keep_log_file_num => 1}) or die "can't open DB\n";
 	my $dbTAX = RocksDB->new("$tmpdir/TAX", { read_only => 1, db_log_dir => '/dev/null', keep_log_file_num => 1}) or die "can't open DB\n";
 	my $groups = $decoder->decode(decompress($dbTAX->get("groups")));
 	my $singleMode = $dbTAX->get("singleMode");
+	$rocksDbAccess->up();
 	my $suppressors = {
 		"others" => 1,
 		"unclassified" => 1
@@ -530,6 +534,7 @@ sub worker {
 		unless ($refTaxId) {
 			lockPrintStderr("$reference has no detectable taxId");
 		}
+		$rocksDbAccess->down();
 		my $parents = $decoder->decode(decompress($dbTAX->get("par.$reference")));;
 		my $ranks = $decoder->decode(decompress($dbTAX->get("ran.$reference")));;
 		my $names = $decoder->decode(decompress($dbTAX->get("nam.$reference")));
@@ -537,6 +542,7 @@ sub worker {
 		my $corrections = $decoder->decode(decompress($dbTAX->get("cor.$reference")));
 		my $whiteListed = checkWhiteList($whiteList, $refTaxId, $parents);
 		my $scaffold = $dbTAX->get("scaf.$reference");
+		$rocksDbAccess->up();
 		my $scafEnt = entropy($scaffold);
 		if ($filter and $scafEnt <= 5) {
 			lockPrintStderr("FILTERED: $reference is low complexity $scafEnt bit per triplet");
@@ -565,6 +571,7 @@ sub worker {
 		my $nonFilterAddMax = 0;
 		my $protHits = 0;
 		my $nucHits = 0;
+		my $posPerGroupHits = {};
 		($protHits, $maxAddAA) = readBlastLines($reference, $dbAA, $topPerPosAA, $topPerPosPerTaxaAA, $parents, $ranks, $names, $corrections, $ok, $overallScoresAA, $overallScores, $maxPossAA, $maxPoss, $groups, \$selfMax, \$selfMaxAA, $aaScale, $codons, $repPerPosPerTaxaAA, $decoder, {}, $tmpdir, $scaffold, $blosum62, $singleMode, $protLambda, $protK, 0);
 		($nucHits, $maxAddNucl) = readBlastLines($reference, $dbNUC, $topPerPosNucl, $topPerPosPerTaxaNucl, $parents, $ranks, $names, $corrections, $ok, $overallScoresNucl, $overallScores, $maxPossNucl, $maxPoss, $groups, \$selfMax, \$selfMaxNucl, $nucScale, {}, $repPerPosPerTaxaNucl, $decoder, $topPerPosAA, $tmpdir, $scaffold, {}, $singleMode, $nucLambda, $nucK, $expectedBitPerNuc);
 		my @letters = split //, $scaffold;
@@ -604,6 +611,7 @@ sub worker {
 			next;
 		}
 		for (my $pos = 0; $pos < scalar(@letters); $pos++) {
+			my $hitGroups = {};
 			if (not defined $letters[$pos]) {
 				next;
 			}
@@ -629,6 +637,7 @@ sub worker {
 			if (exists $repPerPosPerTaxaAA->{$pos}) {
 				foreach my $taxa (keys %{$repPerPosPerTaxaAA->{$pos}}) {
 					$repPerGroup->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
+					$hitGroups->{$taxa2Group->{$taxa}} = 1;
 					$localGroupRep->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
 					$taxaRepAA->{$taxa} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
 					$taxaRep->{$taxa} += $repPerPosPerTaxaAA->{$pos}->{$taxa};
@@ -638,6 +647,7 @@ sub worker {
 			if (exists $repPerPosPerTaxaNucl->{$pos}) {
 				foreach my $taxa (keys %{$repPerPosPerTaxaNucl->{$pos}}) {
 					$repPerGroup->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
+					$hitGroups->{$taxa2Group->{$taxa}} = 1;
 					$localGroupRep->{$taxa2Group->{$taxa}} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
 					$taxaRep->{$taxa} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
 					$taxaRepNucl->{$taxa} += $repPerPosPerTaxaNucl->{$pos}->{$taxa};
@@ -716,6 +726,16 @@ sub worker {
 				}
 			} else {
 				$badTop++;
+			}
+			foreach my $group (keys %$hitGroups) {
+				$posPerGroupHits->{$group}++;
+			}
+		}
+		foreach my $group (keys %$repPerGroup) {
+			if ($repPerGroup->{$group} > 0) {
+				$repPerGroup->{$group} = log10($repPerGroup->{$group}) * $posPerGroupHits->{$group};
+			} else {
+				$repPerGroup->{$group} = 0;
 			}
 		}
 		my $totalScore = 0;
