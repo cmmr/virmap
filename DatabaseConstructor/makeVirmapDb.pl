@@ -198,13 +198,13 @@ foreach my $file (sort {$fileOrder->{$b} <=> $fileOrder->{$a}} keys %$fileOrder)
 	push @speedFiles, "$tmpdir/$file";
 	print PROT "pigz -dc $tmpdir/$file | genbankToProt.pl noPos\n";
 	print NUC "pigz -dc $tmpdir/$file | genbankToNuc.pl\n";
-	print PROTS "pigz -dc $tmpdir/$file | genbankToProt.pl noPos pasteMode | tee $tmpdir/$file.aa.faa | cut -f2\n";
-	print PROTS2 "cat $tmpdir/$file.aa.faa | checksumDerepPreLoad.pl $devShmTmp/aa.dupes $tmpdir/$file.dupes.faa $tmpdir/$file.uniq.faa\n";
-	push @toDelete, "$tmpdir/$file.aa.faa";
-	print NUCS "pigz -dc $tmpdir/$file | genbankToNuc.pl pasteMode | tee $tmpdir/$file.nuc.fna | cut -f2\n";
-	print NUCS2 "cat $tmpdir/$file.nuc.fna | checksumDerepPreLoad.pl $devShmTmp/nuc.dupes $tmpdir/$file.dupes.fna $tmpdir/$file.uniq.fna\n";
-	print NUCS3 "cat $tmpdir/$file.nuc.fna | cut -f1 | sed 's/.*taxId=//g'\n";
-	push @toDelete, "$tmpdir/$file.nuc.fna";
+	print PROTS "pigz -dc $tmpdir/$file | genbankToProt.pl noPos pasteMode | tee >(zstd -cq > $tmpdir/$file.aa.faa.zst) | cut -f2\n";
+	print PROTS2 "zstd -dcq $tmpdir/$file.aa.faa.zst | checksumDerepPreLoad.pl $devShmTmp/aa.dupes $tmpdir/$file.dupes.faa $tmpdir/$file.uniq.faa\n";
+	push @toDelete, "$tmpdir/$file.aa.faa.zst";
+	print NUCS "pigz -dc $tmpdir/$file | genbankToNuc.pl pasteMode | tee >(zstd -cq > $tmpdir/$file.nuc.fna.zst) | cut -f2\n";
+	print NUCS2 "zstd -dcq $tmpdir/$file.nuc.fna.zst | checksumDerepPreLoad.pl $devShmTmp/nuc.dupes $tmpdir/$file.dupes.fna $tmpdir/$file.uniq.fna\n";
+	print NUCS3 "zstd -dcq $tmpdir/$file.nuc.fna.zdt | cut -f1 | sed 's/.*taxId=//g'\n";
+	push @toDelete, "$tmpdir/$file.nuc.fna.zst";
 }
 
 close PROT;
@@ -216,10 +216,10 @@ close NUCS2;
 #my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaa, $tmpdir, $halfprocs);
 #my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFna, $tmpdir, $halfprocs, $outputDir);
 my $toDelete = join " ", @toDelete;
-system("cat $tmpdir/nuc.speed.commands | parallel | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/nuc.dupes");
+system("bash", "-c", "cat $tmpdir/nuc.speed.commands | parallel | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/nuc.dupes");
 
 
-my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $procs, \@speedFiles, $devShmTmp, $outputDir);
+my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp, $outputDir);
 #my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
 
 
@@ -345,9 +345,7 @@ while (1) {
 		$stage2 = 1;
 		$gbBlastnRunning = 1;
 	}
-
-
-	if ($stage2 and $gbBlastnReady and $virNucReady) {
+	if ($stage2 and $gbBlastnReady and $virNucReady and not $taxonomyRunning) {
 		$taxonomyThr = threads->create(\&makeTaxonomy, $tmpdir, $outputDir);
 		$taxonomyRunning = 1;
 	}
@@ -361,8 +359,6 @@ while (1) {
 		$taxonomyDone = 1;
 		print STDERR "Finished building taxonomy structure\n";
 	}
-
-	
 	if ($stage2 and $gbBlastnDone and $gbBlastxDone and $virDmndDone and $virBbmapDone and $taxonomyDone) {
 		my $checksum = sha256_hex(time());
 		open CS, ">$outputDir/VirmapDatabases.checksum";
@@ -441,7 +437,7 @@ sub makeGbBlastxFaaSpeed {
 	my $halfProcs = $_[1];
 	my @inFiles = @{$_[2]};
 	my $devShmTmp = $_[3];
-	system("cat $tmpdir/prot.speed.commands | parallel -j $halfprocs | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/aa.dupes");
+	system("bash", "-c", "cat $tmpdir/prot.speed.commands | parallel -j $halfprocs | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/aa.dupes");
 	system("cat $tmpdir/prot.speed.commands.2 | parallel -j $halfprocs");	
 	my @dupeFiles;
 	my @uniqFiles;
@@ -514,11 +510,15 @@ sub makeGbBlastn {
 	if ($extra) {
 		$extraFiles = join " ", @{$extra};
 	}
-	system("cat $tmpdir/gb.nuc.pre $extraFiles $tmpdir/viral.nuc.pre | shuf | tr '\\t' '\\n' | tee $tmpdir/gbBlastn.fna | makeblastdb -title gbBlastn -out $outdir/gbBlastn -dbtype nucl -max_file_sz 2000000000 1>$outdir/makeGbBlastn.err 2>&1; rm $tmpdir/gb.nuc.pre");
+	my $saveCmd = "";
+	if ($saveFasta) {
+		$saveCmd = "| tee $tmpdir/gbBlastn.fna";
+	}
+	system("cat $tmpdir/gb.nuc.pre $extraFiles $tmpdir/viral.nuc.pre | tr '\\t' '\\n' $saveCmd | makeblastdb -title gbBlastn -out $outdir/gbBlastn -dbtype nucl -max_file_sz 2000000000 1>$outdir/makeGbBlastn.err 2>&1; rm $tmpdir/gb.nuc.pre");
 	if ($saveFasta) {
 		system("cat $tmpdir/gbBlastn.fna | lbzip2 -c -n $procs > $outdir/gb.nuc.fna.bz2");
+		system("rm $tmpdir/gbBlastn.fna");
 	}
-	system("rm $tmpdir/gbBlastn.fna");
 	if ($extra) {
 		system("rm $extraFiles");
 	}
