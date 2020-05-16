@@ -264,15 +264,18 @@ my $taxonomyRunning = 0;
 my $deleteThr;
 my $deleteRunning = 0;
 my $stage2 = 0;
+my $stage2Running = 0;
 
 my $extraFiles;
 while (1) {
 	sleep 1;
-	if ($stage2) {
+	if ($stage2 and not $stage2Running) {
 		$makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
 		$vrlProtThr = threads->create(\&makeVrlFaa, $tmpdir);
 		$vrlGbProtThr = threads->create(\&makeGbVrlFaa, $tmpdir);
 		$vrlNucThr = threads->create(\&makeVrlFna, $tmpdir, $outputDir);
+		$stage2Running = 1;
+		next;
 	}
 	if ($stage2 and not $gbBlastxReady and $makeGbBlastxRawThr->is_joinable()) {
 		$makeGbBlastxRawThr->join();
