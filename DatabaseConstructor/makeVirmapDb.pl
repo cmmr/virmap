@@ -44,7 +44,7 @@ my $tmpdir = tempdir( CLEANUP => 1 );
 unless (testFreeSpaceGb($tmpdir) > 700) {
 	die "$tmpdir has less than 700GB of free space\n";
 }
-unless (testFreeSpaceGb($tmpdir) > 2000 and $saveFasta) {
+if ($saveFasta and testFreeSpaceGb($tmpdir) < 2000) {
 	die "$tmpdir has less than 2000GB of free space (saveFastaMode)\n";
 }
 
