@@ -215,22 +215,26 @@ close PROTS2;
 close NUCS2;
 #my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaa, $tmpdir, $halfprocs);
 #my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFna, $tmpdir, $halfprocs, $outputDir);
-system("cat $tmpdir/nuc.speed.commands | parallel | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/nuc.dupes");
-my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp, $outputDir);
-my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
 my $toDelete = join " ", @toDelete;
+system("cat $tmpdir/nuc.speed.commands | parallel | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/nuc.dupes");
+
+
+my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $procs, \@speedFiles, $devShmTmp, $outputDir);
+#my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
+
+
+my $makeGbBlastxRawThr;
+my $vrlProtThr;
+my $vrlGbProtThr;
+my $vrlNucThr;
 
 
 
 
 
-
-
-
-
-my $vrlProtThr = threads->create(\&makeVrlFaa, $tmpdir);
-my $vrlGbProtThr = threads->create(\&makeGbVrlFaa, $tmpdir);
-my $vrlNucThr = threads->create(\&makeVrlFna, $tmpdir, $outputDir);
+#my $vrlProtThr = threads->create(\&makeVrlFaa, $tmpdir);
+#my $vrlGbProtThr = threads->create(\&makeGbVrlFaa, $tmpdir);
+#my $vrlNucThr = threads->create(\&makeVrlFna, $tmpdir, $outputDir);
 my $virProtReady = 0;
 my $virGbProtReady = 0;
 my $virNucReady = 0;
@@ -259,10 +263,17 @@ my $taxonomyThr;
 my $taxonomyRunning = 0;
 my $deleteThr;
 my $deleteRunning = 0;
+my $stage2 = 0;
 
 my $extraFiles;
 while (1) {
 	sleep 1;
+	if ($stage2) {
+		$makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
+		$vrlProtThr = threads->create(\&makeVrlFaa, $tmpdir);
+		$vrlGbProtThr = threads->create(\&makeGbVrlFaa, $tmpdir);
+		$vrlNucThr = threads->create(\&makeVrlFna, $tmpdir, $outputDir);
+	}
 	if (not $gbBlastxReady and $makeGbBlastxRawThr->is_joinable()) {
 		$makeGbBlastxRawThr->join();
 		$gbBlastxReady = 1;
@@ -326,19 +337,14 @@ while (1) {
 		$gbBlastxDone = 1;
 		print STDERR "Finished building gbBlastx.dmnd\n";
 	}
-
-	if ($gbBlastnReady and $virNucReady and not $gbBlastnRunning) {
-#		$combineGbBlastnThr = threads->create(\&combineGbBlastn, $tmpdir, $extraFiles);
-		$gbBlastnRunning = 1;
-#	}
-#	if (not $combinedGbBlastnReady and $combineGbBlastnRunning and $combineGbBlastnThr->is_joinable()) {
-#		$combineGbBlastnThr->join();
-#		$combinedGbBlastnReady  = 1;
-#		print STDERR "Finished combining gbBlastn and virus\n";
-#	}
-#	if ($combinedGbBlastnReady and not $gbBlastnRunning and not $taxonomyRunning) {
+	if ($gbBlastnReady and not $gbBlastnRunning) {
 		$gbBlastnThr = threads->create(\&makeGbBlastn, $tmpdir, $extraFiles, $outputDir, $procs, $saveFasta);
+		$stage2 = 1;
 		$gbBlastnRunning = 1;
+	}
+
+
+	if ($gbBlastnReady and $virNucReady) {
 		$taxonomyThr = threads->create(\&makeTaxonomy, $tmpdir, $outputDir);
 		$taxonomyRunning = 1;
 	}
@@ -471,11 +477,11 @@ sub makeGbBlastnFna {
 }
 sub makeGbBlastnFnaSpeed {
 	my $tmpdir = $_[0];
-	my $halfProcs = $_[1];
+	my $subThreads = $_[1];
 	my @inFiles = @{$_[2]};
 	my $outdir = $_[3];
-	system("cat $tmpdir/nuc.speed.commands.2 | parallel -j $halfprocs");
-	system("cat $tmpdir/nuc.speed.commands.3 | parallel -j $halfprocs | sort --buffer-size=30G --parallel=$halfprocs | uniq > $tmpdir/gb.taxids");
+	system("cat $tmpdir/nuc.speed.commands.2 | parallel -j $subThreads");
+	system("cat $tmpdir/nuc.speed.commands.3 | parallel -j $subThreads | sort --buffer-size=30G --parallel=$halfprocs | uniq > $tmpdir/gb.taxids");
 	system("cp $tmpdir/gb.taxids $outdir/");
 	my @dupeFiles;
 	my @uniqFiles;
