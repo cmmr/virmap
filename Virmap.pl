@@ -7,7 +7,6 @@ use Pod::Usage;
 use FAlite;
 use File::Temp qw/tempdir/;
 use Time::HiRes qw(time);
-use POSIX::RT::Semaphore;
 use Fcntl; 
 use OpenSourceOrg::API;
 
@@ -285,20 +284,9 @@ unless ($noNormalize) {
 
 #align to virus bbmap
 unless ($noNucMap) {
-	my $sem;
-	$sem = POSIX::RT::Semaphore->open("virBbmapLimit");
-	unless ($sem) {
-		$sem = POSIX::RT::Semaphore->open("virBbmapLimit", O_CREAT, 0666, $bbMapLimit);
-		unless ($sem) {
-			die "sem failed: $!\n";
-		}
-	}
-	$sem->wait;
 	system("bbmap.sh -Xmx$ram noheader=t threads=$threads in=$fileToMap path=$virBbmap noheader=t ambiguous=all ignorefrequentkmers=f slow=t excludefraction=0 greedy=f usejni=t maxsites2=10000000 minid=$bbmapPct outm=stdout.sam secondary=t sssr=$bbmapRad maxsites=100000000 sam=1.3 nmtag=t 32bit=t statsfile=$prefix.bbmap.err 2>$tmpPrefix.bbmap.err | zstd -q -c -T$threads > $tmpPrefix.nuc.sam.zst");
 	system("zstd -q -dc $tmpPrefix.nuc.sam.zst | sort -k3,3 -k4,4n --buffer-size=$RAM --parallel=$threads --compress-program=lz4 | lbzip2 -c -n$threads > $prefix.nuc.sam.bz2");
 	system("cat $tmpPrefix.bbmap.err >> $prefix.bbmap.err");
-	$sem->post;
-	POSIX::RT::Semaphore->unlink("virBbmapLimit");
 	($timeDiff, $cpuDiff) = timeDiff($timeDiff, $cpuDiff, "bbmap to virus");
 } else {
 	system("touch $prefix.nuc.sam; bzip2 $prefix.nuc.sam");
@@ -551,6 +539,7 @@ sub timeDiff {
 #	chomp $cpuLine;
 #	my @cpuParts = split / /, $cpuLine;
 #	my $c2 = ($cpuParts[13] + $cpuParts[14] + $cpuParts[15] + $cpuParts[16]) / $ticks;
+	my $c2 = 0;
 	my $timeDiff = sprintf("%.2f", ($t2 - $t1));
 #	my $cpuDiff = sprintf("%.2f", ($c2 - $c1));
 #	my $cpuRatio = sprintf("%.2f", ($cpuDiff / $timeDiff));
