@@ -10,7 +10,6 @@ use Time::HiRes qw(time);
 use POSIX::RT::Semaphore;
 use Fcntl; 
 use OpenSourceOrg::API;
-use POSIX::1003::Sysconf;
 
 
 my $client = OpenSourceOrg::API->new();
@@ -547,15 +546,16 @@ sub timeDiff {
 	my $c1 = $_[1];
 	my $message = $_[2];
 	my $t2 = time;
-	my $ticks = sysconf('_SC_CLK_TCK');
-	my $cpuLine = `cat /proc/$$/stat`;
-	chomp $cpuLine;
-	my @cpuParts = split / /, $cpuLine;
-	my $c2 = ($cpuParts[13] + $cpuParts[14] + $cpuParts[15] + $cpuParts[16]) / $ticks;
+#	my $ticks = sysconf('_SC_CLK_TCK');
+#	my $cpuLine = `cat /proc/$$/stat`;
+#	chomp $cpuLine;
+#	my @cpuParts = split / /, $cpuLine;
+#	my $c2 = ($cpuParts[13] + $cpuParts[14] + $cpuParts[15] + $cpuParts[16]) / $ticks;
 	my $timeDiff = sprintf("%.2f", ($t2 - $t1));
-	my $cpuDiff = sprintf("%.2f", ($c2 - $c1));
-	my $cpuRatio = sprintf("%.2f", ($cpuDiff / $timeDiff));
-	my $msg = "TIME $sampleName $message: $timeDiff seconds, $cpuDiff CPU seconds, $cpuRatio CPU ratio";
+#	my $cpuDiff = sprintf("%.2f", ($c2 - $c1));
+#	my $cpuRatio = sprintf("%.2f", ($cpuDiff / $timeDiff));
+#	my $msg = "TIME $sampleName $message: $timeDiff seconds, $cpuDiff CPU seconds, $cpuRatio CPU ratio";
+	my $msg = "TIME $sampleName $message: $timeDiff seconds";
 	print STDERR "$msg\n";
 	system("echo '$msg' >> $prefix.log");
 	return($t2, $c2);
