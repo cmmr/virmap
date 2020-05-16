@@ -274,7 +274,7 @@ while (1) {
 		$vrlGbProtThr = threads->create(\&makeGbVrlFaa, $tmpdir);
 		$vrlNucThr = threads->create(\&makeVrlFna, $tmpdir, $outputDir);
 	}
-	if (not $gbBlastxReady and $makeGbBlastxRawThr->is_joinable()) {
+	if ($stage2 and not $gbBlastxReady and $makeGbBlastxRawThr->is_joinable()) {
 		$makeGbBlastxRawThr->join();
 		$gbBlastxReady = 1;
 		print STDERR "Finished parsing for gbBlastx\n";
@@ -284,55 +284,55 @@ while (1) {
 		$gbBlastnReady = 1;
 		print STDERR "Finished parsing for gbBlastn\n";
 	}
-	if ($gbBlastnReady and $gbBlastxReady and not $deleteRunning) {
+	if ($stage2 and $gbBlastnReady and $gbBlastxReady and not $deleteRunning) {
 		$deleteThr = threads->create(\&deleteFiles, $toDelete);
 		$deleteRunning = 1;
 	}
-	if (not $deleteDone and $deleteRunning and $deleteThr->is_joinable()) {
+	if ($stage2 and not $deleteDone and $deleteRunning and $deleteThr->is_joinable()) {
 		$deleteThr->join();
 		$deleteDone = 1;
 	}
-	if (not $virProtReady and $vrlProtThr->is_joinable()) {
+	if ($stage2 and not $virProtReady and $vrlProtThr->is_joinable()) {
 		$vrlProtThr->join();
 		$virProtReady = 1;
 		print STDERR "Finished parsing virus for virDmnd.dmnd\n";
 	}
-	if (not $virGbProtReady and $vrlGbProtThr->is_joinable()) {
+	if ($stage2 and not $virGbProtReady and $vrlGbProtThr->is_joinable()) {
 		$vrlGbProtThr->join();
 		$virGbProtReady = 1;
 		print STDERR "Finished parsing virus for gbBlastx\n";
 	}
-	if (not $virNucReady and $vrlNucThr->is_joinable) {
+	if ($stage2 and not $virNucReady and $vrlNucThr->is_joinable) {
 		$vrlNucThr->join();
 		$virNucReady = 1;
 		print STDERR "Finished parsing virus for virBbmap\n";
 	}
 
-	if ($virProtReady and not $virDmndRunning) {
+	if ($stage2 and $virProtReady and not $virDmndRunning) {
 		$virDmndThr = threads->create(\&makeVirdmnd, $tmpdir, $outputDir, $halfprocs, $saveFasta);
 		$virDmndRunning = 1;
 	}
-	if (not $virDmndDone and $virDmndRunning and $virDmndThr->is_joinable()) {
+	if ($stage2 and not $virDmndDone and $virDmndRunning and $virDmndThr->is_joinable()) {
 		$virDmndThr->join();
 		$virDmndDone = 1;
 		print STDERR "Finished building virDmnd.dmnd\n";
 	}
 
-	if ($virNucReady and not $virBbmapRunning) {
+	if ($stage2 and $virNucReady and not $virBbmapRunning) {
 		$virBbmapThr = threads->create(\&makeVirBbmap, $tmpdir, $outputDir, $halfprocs, $saveFasta);
 		$virBbmapRunning = 1;
 	}
-	if (not $virBbmapDone and $virBbmapRunning and $virBbmapThr->is_joinable()) {
+	if ($stage2 and not $virBbmapDone and $virBbmapRunning and $virBbmapThr->is_joinable()) {
 		$virBbmapThr->join();
 		$virBbmapDone = 1;
 		print STDERR "Finished building virBbmap\n";
 	}
 
-	if ($gbBlastxReady and $virGbProtReady and not $gbBlastxRunning) {
+	if ($stage2 and $gbBlastxReady and $virGbProtReady and not $gbBlastxRunning) {
 		$gbBlastxThr = threads->create(\&makeGbBlastx, $tmpdir, $outputDir, $halfprocs, $saveFasta);
 		$gbBlastxRunning = 1;
 	}
-	if (not $gbBlastxDone and $gbBlastxRunning and $gbBlastxThr->is_joinable()) {
+	if ($stage2 and not $gbBlastxDone and $gbBlastxRunning and $gbBlastxThr->is_joinable()) {
 		$gbBlastxThr->join();
 		$gbBlastxDone = 1;
 		print STDERR "Finished building gbBlastx.dmnd\n";
@@ -344,23 +344,23 @@ while (1) {
 	}
 
 
-	if ($gbBlastnReady and $virNucReady) {
+	if ($stage2 and $gbBlastnReady and $virNucReady) {
 		$taxonomyThr = threads->create(\&makeTaxonomy, $tmpdir, $outputDir);
 		$taxonomyRunning = 1;
 	}
-	if (not $gbBlastnDone and $gbBlastnRunning and $gbBlastnThr->is_joinable()) {
+	if ($stage2 and not $gbBlastnDone and $gbBlastnRunning and $gbBlastnThr->is_joinable()) {
 		$gbBlastnThr->join();
 		$gbBlastnDone = 1;
 		print STDERR "Finished building gbBlastn\n";
 	}
-	if (not $taxonomyDone and $taxonomyRunning and $taxonomyThr->is_joinable()) {
+	if ($stage2 and not $taxonomyDone and $taxonomyRunning and $taxonomyThr->is_joinable()) {
 		$taxonomyThr->join();
 		$taxonomyDone = 1;
 		print STDERR "Finished building taxonomy structure\n";
 	}
 
 	
-	if ($gbBlastnDone and $gbBlastxDone and $virDmndDone and $virBbmapDone and $taxonomyDone) {
+	if ($stage2 and $gbBlastnDone and $gbBlastxDone and $virDmndDone and $virBbmapDone and $taxonomyDone) {
 		my $checksum = sha256_hex(time());
 		open CS, ">$outputDir/VirmapDatabases.checksum";
 		print CS "$checksum\n";
