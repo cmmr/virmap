@@ -1,0 +1,13 @@
+19,20d18
+<             -Wno-reserved-user-defined-literal
+<             -Wno-duplicate-decl-specifier
+24d21
+<             -Wno-unknown-warning-option
+149c146
+<     $self->do_system('make' => '-C', $ROCKSDB_DIR, 'static_lib', 'OPT=-fPIC', 'USE_RTTI=1');
+---
+>     $self->do_system('make' => '-j96', '-C', $ROCKSDB_DIR, 'static_lib', 'OPT=-fPIC', 'USE_RTTI=1');
+155c152
+<     $self->do_system('make' => '-C', $ROCKSDB_DIR, 'clean');
+---
+>     $self->do_system('make' => '-j96', '-C', $ROCKSDB_DIR, 'clean');
