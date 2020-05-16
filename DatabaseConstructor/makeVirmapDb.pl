@@ -203,7 +203,7 @@ foreach my $file (sort {$fileOrder->{$b} <=> $fileOrder->{$a}} keys %$fileOrder)
 	push @toDelete, "$tmpdir/$file.aa.faa.zst";
 	print NUCS "pigz -dc $tmpdir/$file | genbankToNuc.pl pasteMode | tee >(zstd -cq > $tmpdir/$file.nuc.fna.zst) | cut -f2\n";
 	print NUCS2 "zstd -dcq $tmpdir/$file.nuc.fna.zst | checksumDerepPreLoad.pl $devShmTmp/nuc.dupes $tmpdir/$file.dupes.fna $tmpdir/$file.uniq.fna\n";
-	print NUCS3 "zstd -dcq $tmpdir/$file.nuc.fna.zdt | cut -f1 | sed 's/.*taxId=//g'\n";
+	print NUCS3 "zstd -dcq $tmpdir/$file.nuc.fna.zst | cut -f1 | sed 's/.*taxId=//g'\n";
 	push @toDelete, "$tmpdir/$file.nuc.fna.zst";
 }
 
@@ -219,7 +219,7 @@ my $toDelete = join " ", @toDelete;
 system("bash", "-c", "cat $tmpdir/nuc.speed.commands | parallel | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/nuc.dupes");
 
 
-my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp, $outputDir);
+my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $procs, \@speedFiles, $devShmTmp, $outputDir);
 #my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
 
 
