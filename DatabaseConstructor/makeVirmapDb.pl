@@ -29,7 +29,7 @@ $procs = $procs + 1;
 
 
 my $totalMem = totalmem();
-if ($totalMem / (1024 ** 3) < 500) {
+if ($totalMem / (1024 ** 3) < 170) {
 	die "Machine doesn't have enough memory to safely build the database\n";
 }
 
@@ -199,10 +199,10 @@ foreach my $file (sort {$fileOrder->{$b} <=> $fileOrder->{$a}} keys %$fileOrder)
 	print PROT "pigz -dc $tmpdir/$file | genbankToProt.pl noPos\n";
 	print NUC "pigz -dc $tmpdir/$file | genbankToNuc.pl\n";
 	print PROTS "pigz -dc $tmpdir/$file | genbankToProt.pl noPos pasteMode | tee >(zstd -cq > $tmpdir/$file.aa.faa.zst) | cut -f2\n";
-	print PROTS2 "zstd -dcq $tmpdir/$file.aa.faa.zst | checksumDerepPreLoad.pl $devShmTmp/aa.dupes $tmpdir/$file.dupes.faa $tmpdir/$file.uniq.faa\n";
+	print PROTS2 "zstd -dcq $tmpdir/$file.aa.faa.zst | checksumDerepPreLoad.pl $devShmTmp/aa.dupes $tmpdir/$file.dupes.faa.zst $tmpdir/$file.uniq.faa.zst\n";
 	push @toDelete, "$tmpdir/$file.aa.faa.zst";
 	print NUCS "pigz -dc $tmpdir/$file | genbankToNuc.pl pasteMode | tee >(zstd -cq > $tmpdir/$file.nuc.fna.zst) | cut -f2\n";
-	print NUCS2 "zstd -dcq $tmpdir/$file.nuc.fna.zst | checksumDerepPreLoad.pl $devShmTmp/nuc.dupes $tmpdir/$file.dupes.fna $tmpdir/$file.uniq.fna\n";
+	print NUCS2 "zstd -dcq $tmpdir/$file.nuc.fna.zst | checksumDerepPreLoad.pl $devShmTmp/nuc.dupes $tmpdir/$file.dupes.fna.zst $tmpdir/$file.uniq.fna.zst\n";
 	print NUCS3 "zstd -dcq $tmpdir/$file.nuc.fna.zst | cut -f1 | sed 's/.*taxId=//g'\n";
 	push @toDelete, "$tmpdir/$file.nuc.fna.zst";
 }
@@ -219,7 +219,7 @@ my $toDelete = join " ", @toDelete;
 system("bash", "-c", "cat $tmpdir/nuc.speed.commands | parallel | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/nuc.dupes");
 
 
-my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $procs, \@speedFiles, $devShmTmp, $outputDir);
+my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp, $outputDir);
 #my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
 
 
@@ -388,7 +388,7 @@ sub makeVirBbmap {
 	my $outdir = $_[1];
 	my $halfprocs = $_[2];
 	my $saveFasta = $_[3];
-	system("bbmap.sh ref=$tmpdir/viral.nuc.fna path=$outdir/virBbmap build=1 2>$outdir/makeVirBbmap.err");
+	system("bbmap.sh -Xmx70G ref=$tmpdir/viral.nuc.fna path=$outdir/virBbmap build=1 2>$outdir/makeVirBbmap.err");
 	if ($saveFasta) {
 		system("cat $tmpdir/viral.nuc.fna | lbzip2 -c -n $halfprocs > $outdir/viral.nuc.fna.bz2");
 	}
@@ -414,13 +414,13 @@ sub makeVrlFaa {
 }
 sub makeGbVrlFaa {
 	my $tmpdir = $_[0];
-	system("cat $tmpdir/vrl.gb.prot.commands | parallel > $tmpdir/viral.gb.aa.pre");
+	system("cat $tmpdir/vrl.gb.prot.commands | parallel | zstd -cq -T$halfprocs> $tmpdir/viral.gb.aa.pre.zst");
 	return(0);
 }
 sub makeVrlFna {
 	my $tmpdir = $_[0];
 	my $outdir = $_[1];
-	system("cat $tmpdir/vrl.nuc.commands | parallel | paste - - | shuf | tee $tmpdir/viral.nuc.pre | tr '\\t' '\\n' > $tmpdir/viral.nuc.fna");
+	system("bash", "-c", "cat $tmpdir/vrl.nuc.commands | parallel | paste - - | shuf | tee >(zstd -cq > $tmpdir/viral.nuc.pre.zst) | tr '\\t' '\\n' > $tmpdir/viral.nuc.fna");
 	system("cat $tmpdir/viral.nuc.fna | grep '^>' | sed 's/.*taxId=//g' | sort --buffer-size=10G --parallel=8 | uniq > $tmpdir/viral.taxids");
 	system("cp $tmpdir/viral.taxids $outdir/");
 	return(0);
@@ -434,7 +434,7 @@ sub makeGbBlastxFaa {
 }
 sub makeGbBlastxFaaSpeed {
 	my $tmpdir = $_[0];
-	my $halfProcs = $_[1];
+	my $halfprocs = $_[1];
 	my @inFiles = @{$_[2]};
 	my $devShmTmp = $_[3];
 	system("bash", "-c", "cat $tmpdir/prot.speed.commands | parallel -j $halfprocs | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/aa.dupes");
@@ -442,14 +442,14 @@ sub makeGbBlastxFaaSpeed {
 	my @dupeFiles;
 	my @uniqFiles;
 	foreach my $file (@inFiles) {
-		push @dupeFiles, "$file.dupes.faa";
-		push @uniqFiles, "$file.uniq.faa";
+		push @dupeFiles, "$file.dupes.faa.zst";
+		push @uniqFiles, "$file.uniq.faa.zst";
 	}
 	my $dupesLine = join " ", @dupeFiles;
 	my $uniqLine = join " ", @uniqFiles;
-	system("cat $dupesLine | checksumDerepDupesOnly.pl > $tmpdir/gb.aa.pre");
+	system("zstd -dcq $dupesLine | checksumDerepDupesOnly.pl | zstd -cq -T$halfprocs > $tmpdir/gb.aa.pre.zst");
 	system("rm $dupesLine");
-	system("cat $uniqLine >> $tmpdir/gb.aa.pre");
+	system("zstd -dcq $uniqLine | zstd -cq -T$halfprocs >> $tmpdir/gb.aa.pre.zst");
 	system("rm $uniqLine");
 	return(0);
 }
@@ -458,11 +458,12 @@ sub makeGbBlastx {
 	my $outdir = $_[1];
 	my $halfprocs = $_[2];
 	my $saveFasta = $_[3];
-	system("cat $tmpdir/gb.aa.pre $tmpdir/viral.gb.aa.pre | shuf | tr '\\t' '\\n' > $tmpdir/gb.aa.faa; rm $tmpdir/gb.aa.pre");
-	system("diamond makedb --in $tmpdir/gb.aa.faa --db $outdir/gbBlastx.dmnd 2>$outdir/makeGbBlastx.err");
+	system("bash", "-c", "zstd -dcq $tmpdir/gb.aa.pre.zst $tmpdir/viral.gb.aa.pre.zst | shuf | tr '\\t' '\\n' | zstd -cq -T$halfprocs > $tmpdir/gb.aa.faa.zst; rm $tmpdir/gb.aa.pre.zst $tmpdir/viral.gb.aa.pre.zst");
+	system("zstd -cq $tmpdir/gb.aa.faa.zst | diamond makedb --in /dev/stdin --db $outdir/gbBlastx.dmnd 2>$outdir/makeGbBlastx.err");
 	if ($saveFasta) {
-		system("cat $tmpdir/gb.aa.faa | lbzip2 -c -n $halfprocs > $outdir/gb.aa.faa.bz2");
+		system("zstd -cq $tmpdir/gb.aa.faa.zst | lbzip2 -c -n $halfprocs > $outdir/gb.aa.faa.bz2");
 	}
+	system("rm $tmpdir/gb.aa.faa.zst");
 	return(0);
 }
 
@@ -479,19 +480,19 @@ sub makeGbBlastnFnaSpeed {
 	my $subThreads = $_[1];
 	my @inFiles = @{$_[2]};
 	my $outdir = $_[3];
-	system("cat $tmpdir/nuc.speed.commands.2 | parallel -j $subThreads");
+	system("cat $tmpdir/nuc.speed.commands.2 | shuf | parallel -j $subThreads");
 	system("cat $tmpdir/nuc.speed.commands.3 | parallel -j $subThreads | sort --buffer-size=30G --parallel=$halfprocs | uniq > $tmpdir/gb.taxids");
 	system("cp $tmpdir/gb.taxids $outdir/");
 	my @dupeFiles;
 	my @uniqFiles;
 	foreach my $file (@inFiles) {
-		push @dupeFiles, "$file.dupes.fna";
-		push @uniqFiles, "$file.uniq.fna";
+		push @dupeFiles, "$file.dupes.fna.zst";
+		push @uniqFiles, "$file.uniq.fna.zst";
 	}
 	shuffle_array(@uniqFiles);
 	my $dupesLine = join " ", @dupeFiles;
 	my $uniqLine = join " ", @uniqFiles;
-	system("cat $dupesLine | checksumDerepDupesOnly.pl > $tmpdir/gb.nuc.pre");
+	system("zstd -dcq $dupesLine | checksumDerepDupesOnly.pl | zstd -cq -T$subThreads > $tmpdir/gb.nuc.pre.zst");
 	system("rm $dupesLine");
 #	system("cat $uniqLine >> $tmpdir/gb.nuc.pre");
 #	system("rm $uniqLine");
@@ -512,13 +513,9 @@ sub makeGbBlastn {
 	}
 	my $saveCmd = "";
 	if ($saveFasta) {
-		$saveCmd = "| tee $tmpdir/gbBlastn.fna";
+		$saveCmd = "| tee >(lbzip2 -c -n $halfprocs > $outdir/gb.nuc.fna.bz2)";
 	}
-	system("cat $tmpdir/gb.nuc.pre $extraFiles $tmpdir/viral.nuc.pre | tr '\\t' '\\n' $saveCmd | makeblastdb -title gbBlastn -out $outdir/gbBlastn -dbtype nucl -max_file_sz 2000000000 1>$outdir/makeGbBlastn.err 2>&1; rm $tmpdir/gb.nuc.pre");
-	if ($saveFasta) {
-		system("cat $tmpdir/gbBlastn.fna | lbzip2 -c -n $procs > $outdir/gb.nuc.fna.bz2");
-		system("rm $tmpdir/gbBlastn.fna");
-	}
+	system("bash", "-c", "zstd -dqc $tmpdir/gb.nuc.pre.zst $extraFiles $tmpdir/viral.nuc.pre.zst | tr '\\t' '\\n' $saveCmd | makeblastdb -title gbBlastn -out $outdir/gbBlastn -dbtype nucl -max_file_sz 2000000000 1>$outdir/makeGbBlastn.err 2>&1; rm $tmpdir/gb.nuc.pre.zst $tmpdir/viral.nuc.pre.zst");
 	if ($extra) {
 		system("rm $extraFiles");
 	}

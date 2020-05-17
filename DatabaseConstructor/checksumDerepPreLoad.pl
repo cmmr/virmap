@@ -20,8 +20,8 @@ binmode(PRE);
 my $decoder = Sereal::Decoder->new();
 my $seen = $decoder->decode(decompress($serealData));
 close PRE;
-open OUT, ">$ARGV[1]";
-open UNIQ, "| shuf >$ARGV[2]";
+open OUT, "| zstd -cq >$ARGV[1]";
+open UNIQ, "| shuf | zstd -cq >$ARGV[2]";
 while (my $line = <IN>) {
 	my @parts = split /\t/, $line;
 	if (exists $seen->{$parts[1]}) {
