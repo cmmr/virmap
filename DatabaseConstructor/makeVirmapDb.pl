@@ -219,7 +219,7 @@ my $toDelete = join " ", @toDelete;
 system("bash", "-c", "cat $tmpdir/nuc.speed.commands | parallel | sort --buffer-size=30G --parallel=$halfprocs | uniq -c | sed -re 's/^\\s+//g' | grep -v '^1 ' | cut -f2 -d ' ' | makeDupeStruct.pl > $devShmTmp/nuc.dupes");
 
 
-my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp, $outputDir);
+my $makeGbBlastnRawThr = threads->create(\&makeGbBlastnFnaSpeed, $tmpdir, $procs, \@speedFiles, $devShmTmp, $outputDir);
 #my $makeGbBlastxRawThr = threads->create(\&makeGbBlastxFaaSpeed, $tmpdir, $halfprocs, \@speedFiles, $devShmTmp);
 
 
@@ -303,7 +303,7 @@ while (1) {
 	if ($stage2 and not $virGbProtReady and $vrlGbProtThr->is_joinable()) {
 		$vrlGbProtThr->join();
 		$virGbProtReady = 1;
-		print STDERR "Finished parsing virus for gbBlastx\n";
+		print STDERR "Finished parsing virus for virDmnd.dmnd\n";
 	}
 	if ($stage2 and not $virNucReady and $vrlNucThr->is_joinable) {
 		$vrlNucThr->join();
