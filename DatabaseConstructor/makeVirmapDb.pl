@@ -459,7 +459,7 @@ sub makeGbBlastx {
 	my $halfprocs = $_[2];
 	my $saveFasta = $_[3];
 	system("bash", "-c", "zstd -dcq $tmpdir/gb.aa.pre.zst $tmpdir/viral.gb.aa.pre.zst | shuf | tr '\\t' '\\n' | zstd -cq -T$halfprocs > $tmpdir/gb.aa.faa.zst; rm $tmpdir/gb.aa.pre.zst $tmpdir/viral.gb.aa.pre.zst");
-	system("zstd -cq $tmpdir/gb.aa.faa.zst | diamond makedb --in /dev/stdin --db $outdir/gbBlastx.dmnd 2>$outdir/makeGbBlastx.err");
+	system("zstd -dcq $tmpdir/gb.aa.faa.zst | diamond makedb --in /dev/stdin --db $outdir/gbBlastx.dmnd 2>$outdir/makeGbBlastx.err");
 	if ($saveFasta) {
 		system("zstd -cq $tmpdir/gb.aa.faa.zst | lbzip2 -c -n $halfprocs > $outdir/gb.aa.faa.bz2");
 	}
