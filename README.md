@@ -1,6 +1,8 @@
 # VirMAP
 
-The full VirMAP source code is released, documentation and database constructor to come.
+The full VirMAP source code is released, database constructor is posted. Installer script for an AWS 24xlarge instance coming soon.
+
+Please post any questions, comments, or concerns. 
 
 The paper is published at Nature Communications:
 https://doi.org/10.1038/s41467-018-05658-8<br />
@@ -28,9 +30,10 @@ Ajami, N. J., Wong, M. C., Ross, M. C., Lloyd, R. E., & Petrosino, J. F. (2018).
 
 Rough Requirements:<br />
 
-Hardware:<br />
-48GB+ RAM<br />
-4 cores+ CPU<br />
+Hardware (recommanded):<br />
+80GB+ RAM<br />
+12 cores+ CPU<br />
+per instance.
 
 Perl:<br />
 Multi-threaded 5.24+<br />
@@ -45,6 +48,7 @@ normalize-by-median.py (https://github.com/dib-lab/khmer)<br />
 pigz (https://github.com/madler/pigz)<br />
 vsearch (https://github.com/torognes/vsearch)<br />
 zstd (https://github.com/facebook/zstd)<br />
+and others....
 
 CPAN Dependencies:<br />
 Compress::Zstd (https://metacpan.org/pod/Compress::Zstd)<br />
@@ -55,7 +59,9 @@ RocksDB (https://metacpan.org/pod/RocksDB)<br />
 Sereal (https://metacpan.org/pod/Sereal)<br />
 Text::Levenshtein::Damerau::XS (https://metacpan.org/pod/Text::Levenshtein::Damerau::XS)<br />
 Text::Levenshtein::XS (https://metacpan.org/pod/Text::Levenshtein::XS)<br />
+and others....
  
 
 Custom Dependencies:<br />
 FAlite (http://korflab.ucdavis.edu/Unix_and_Perl/FAlite.pm)
+that's it.
