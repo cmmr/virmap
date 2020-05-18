@@ -41,11 +41,11 @@ unless (-e $ENV{'TMPDIR'}) {
 	die "TMPDIR set, but doesn't exist: $ENV{'TMPDIR'}\n";
 }
 my $tmpdir = tempdir( CLEANUP => 1 );
-unless (testFreeSpaceGb($tmpdir) > 700) {
-	die "$tmpdir has less than 700GB of free space\n";
+unless (testFreeSpaceGb($tmpdir) > 500) {
+	die "$tmpdir has less than 500GB of free space\n";
 }
-if ($saveFasta and testFreeSpaceGb($tmpdir) < 2000) {
-	die "$tmpdir has less than 2000GB of free space (saveFastaMode)\n";
+if ($saveFasta and testFreeSpaceGb($tmpdir) < 1000) {
+	die "$tmpdir has less than 1000GB of free space (saveFastaMode)\n";
 }
 
 my $startDir = cwd();
