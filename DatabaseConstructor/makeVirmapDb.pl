@@ -26,6 +26,7 @@ GetOptions("outputDir=s" => \$outputDir, "divisionsFile=s" => \$divisionsFile, "
 my $procs = `cat /proc/cpuinfo | grep "^processor" | tail -1 | sed "s/.* //g"`;
 chomp $procs;
 $procs = $procs + 1;
+my $div8procs = int($procs / 8);
 
 
 my $totalMem = totalmem();
@@ -121,7 +122,7 @@ chdir($tmpdir);
 
 my $files = {};
 foreach my $div (@wantedDivisions) {
-	my $return = `lftp -e "rels $div*.seq.gz; exit" ftp://ftp.ncbi.nlm.nih.gov/genbank/ 2>/dev/null | sed "s/.* //g"`;
+	my $return = `lftp -e "rels $div*.seq.gz; exit" $ncbiGenbankFtp 2>/dev/null | sed "s/.* //g"`;
 	chomp $return;
 	my @files = split /\n/, $return;
 	$files->{$div} = \@files;
@@ -133,7 +134,20 @@ foreach my $div (@wantedDivisions) {
 	push @includeString, "--include-glob=$div*.seq.gz";
 }
 my $includeString = join " ", @includeString;
-system("lftp -e \"mirror -r --parallel=8 $includeString; exit\" $ncbiGenbankFtp 2>/dev/null");
+#system("lftp -e \"mirror -r --parallel=8 $includeString; exit\" $ncbiGenbankFtp 2>/dev/null");
+open GRAB, ">$tmpdir/grab.commands";
+foreach my $div (keys %$files) {
+	my @newFiles
+	foreach my $file (@{$files->{$div}}) {
+		my $newName = $file;
+		$newName =~ s/.gz$/.bz2/g;
+		push @newFiles, $newName;
+		print GRAB "lftp -e \"get $file; exit\" $ncbiGenbankFtp 2>/dev/null; pigz -dc $file | lbzip2 -n $div8proc -c > $newName; rm $file");
+	}
+	$files->{$div} = \@newFiles;
+}
+close GRAB;
+system("cat $tmpdir/grab.commands | parallel -j8");
 print STDERR "Finished grabbing division dumps from $ncbiGenbankFtp\n";
 
 my $fileCheckFail = 0;
@@ -156,9 +170,9 @@ open PROTGB, ">$tmpdir/vrl.gb.prot.commands";
 open NUC, ">$tmpdir/vrl.nuc.commands";
 foreach my $div (@viralDivisions) {
 	foreach my $file (@{$files->{$div}}) {
-		print NUC "pigz -dc $tmpdir/$file | genbankToNuc.pl noSum\n";
-		print PROTGB "pigz -dc $tmpdir/$file | genbankToProt.pl noPos noSum | paste - -\n";
-		print PROT "pigz -dc $tmpdir/$file | genbankToProt.pl noSum\n";
+		print NUC "bzcat $tmpdir/$file | genbankToNuc.pl noSum\n";
+		print PROTGB "bzcat $tmpdir/$file | genbankToProt.pl noPos noSum | paste - -\n";
+		print PROT "bzcat $tmpdir/$file | genbankToProt.pl noSum\n";
 	}
 }
 close PROTGB;
@@ -174,8 +188,8 @@ close NUC;
 my $halfprocs = int($procs / 2);
 
 #### make generic genbank databases ####
-open PROT, ">$tmpdir/prot.commands";
-open NUC, ">$tmpdir/nuc.commands";
+#open PROT, ">$tmpdir/prot.commands";
+#open NUC, ">$tmpdir/nuc.commands";
 open PROTS, ">$tmpdir/prot.speed.commands";
 open PROTS2, ">$tmpdir/prot.speed.commands.2";
 open NUCS, ">$tmpdir/nuc.speed.commands";
@@ -196,19 +210,19 @@ foreach my $div (@wantedDivisions) {
 }
 foreach my $file (sort {$fileOrder->{$b} <=> $fileOrder->{$a}} keys %$fileOrder) {
 	push @speedFiles, "$tmpdir/$file";
-	print PROT "pigz -dc $tmpdir/$file | genbankToProt.pl noPos\n";
-	print NUC "pigz -dc $tmpdir/$file | genbankToNuc.pl\n";
-	print PROTS "pigz -dc $tmpdir/$file | genbankToProt.pl noPos pasteMode | tee >(zstd -cq > $tmpdir/$file.aa.faa.zst) | cut -f2\n";
+	#print PROT "pigz -dc $tmpdir/$file | genbankToProt.pl noPos\n";
+	#print NUC "pigz -dc $tmpdir/$file | genbankToNuc.pl\n";
+	print PROTS "bzcat -dc $tmpdir/$file | genbankToProt.pl noPos pasteMode | tee >(zstd -cq > $tmpdir/$file.aa.faa.zst) | cut -f2\n";
 	print PROTS2 "zstd -dcq $tmpdir/$file.aa.faa.zst | checksumDerepPreLoad.pl $devShmTmp/aa.dupes $tmpdir/$file.dupes.faa.zst $tmpdir/$file.uniq.faa.zst\n";
 	push @toDelete, "$tmpdir/$file.aa.faa.zst";
-	print NUCS "pigz -dc $tmpdir/$file | genbankToNuc.pl pasteMode | tee >(zstd -cq > $tmpdir/$file.nuc.fna.zst) | cut -f2\n";
+	print NUCS "bzcat -dc $tmpdir/$file | genbankToNuc.pl pasteMode | tee >(zstd -cq > $tmpdir/$file.nuc.fna.zst) | cut -f2\n";
 	print NUCS2 "zstd -dcq $tmpdir/$file.nuc.fna.zst | checksumDerepPreLoad.pl $devShmTmp/nuc.dupes $tmpdir/$file.dupes.fna.zst $tmpdir/$file.uniq.fna.zst\n";
 	print NUCS3 "zstd -dcq $tmpdir/$file.nuc.fna.zst | cut -f1 | sed 's/.*taxId=//g'\n";
 	push @toDelete, "$tmpdir/$file.nuc.fna.zst";
 }
 
-close PROT;
-close NUC;
+#close PROT;
+#close NUC;
 close PROTS;
 close NUCS;
 close PROTS2;
