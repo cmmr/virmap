@@ -137,12 +137,12 @@ my $includeString = join " ", @includeString;
 #system("lftp -e \"mirror -r --parallel=8 $includeString; exit\" $ncbiGenbankFtp 2>/dev/null");
 open GRAB, ">$tmpdir/grab.commands";
 foreach my $div (keys %$files) {
-	my @newFiles
+	my @newFiles;
 	foreach my $file (@{$files->{$div}}) {
 		my $newName = $file;
 		$newName =~ s/.gz$/.bz2/g;
 		push @newFiles, $newName;
-		print GRAB "lftp -e \"get $file; exit\" $ncbiGenbankFtp 2>/dev/null; pigz -dc $file | lbzip2 -n $div8proc -c > $newName; rm $file");
+		print GRAB "lftp -e \"get $file; exit\" $ncbiGenbankFtp 2>/dev/null; pigz -dc $file | lbzip2 -n $div8procs -c > $newName; rm $file\n";
 	}
 	$files->{$div} = \@newFiles;
 }
