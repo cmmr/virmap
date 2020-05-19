@@ -29,7 +29,7 @@ $procs = $procs + 1;
 
 
 my $totalMem = totalmem();
-if ($totalMem / (1024 ** 3) < 170) {
+if ($totalMem / (1024 ** 3) < 80) {
 	die "Machine doesn't have enough memory to safely build the database\n";
 }
 
