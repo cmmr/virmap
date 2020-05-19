@@ -26,7 +26,7 @@ GetOptions("outputDir=s" => \$outputDir, "divisionsFile=s" => \$divisionsFile, "
 my $procs = `cat /proc/cpuinfo | grep "^processor" | tail -1 | sed "s/.* //g"`;
 chomp $procs;
 $procs = $procs + 1;
-my $div8procs = int($procs / 8);
+#my $div8procs = int($procs / 8);
 
 
 my $totalMem = totalmem();
@@ -134,20 +134,20 @@ foreach my $div (@wantedDivisions) {
 	push @includeString, "--include-glob=$div*.seq.gz";
 }
 my $includeString = join " ", @includeString;
-#system("lftp -e \"mirror -r --parallel=8 $includeString; exit\" $ncbiGenbankFtp 2>/dev/null");
-open GRAB, ">$tmpdir/grab.commands";
-foreach my $div (keys %$files) {
-	my @newFiles;
-	foreach my $file (@{$files->{$div}}) {
-		my $newName = $file;
-		$newName =~ s/.gz$/.bz2/g;
-		push @newFiles, $newName;
-		print GRAB "lftp -e \"get $file; exit\" $ncbiGenbankFtp 2>/dev/null; pigz -dc $file | lbzip2 -n $div8procs -c > $newName; rm $file\n";
-	}
-	$files->{$div} = \@newFiles;
-}
-close GRAB;
-system("cat $tmpdir/grab.commands | parallel -j8");
+system("lftp -e \"mirror -r --parallel=12 $includeString; exit\" $ncbiGenbankFtp 2>/dev/null");
+#open GRAB, ">$tmpdir/grab.commands";
+#foreach my $div (keys %$files) {
+#	my @newFiles;
+#	foreach my $file (@{$files->{$div}}) {
+#		my $newName = $file;
+#		$newName =~ s/.gz$/.bz2/g;
+#		push @newFiles, $newName;
+#		print GRAB "lftp -e \"get $file; exit\" $ncbiGenbankFtp 2>/dev/null; pigz -dc $file | lbzip2 -n $div8procs -c > $newName; rm $file\n";
+#	}
+#	$files->{$div} = \@newFiles;
+#}
+#close GRAB;
+#system("cat $tmpdir/grab.commands | parallel -j8");
 print STDERR "Finished grabbing division dumps from $ncbiGenbankFtp\n";
 
 my $fileCheckFail = 0;
