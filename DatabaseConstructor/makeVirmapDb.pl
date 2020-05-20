@@ -402,7 +402,7 @@ sub makeVirBbmap {
 	my $outdir = $_[1];
 	my $halfprocs = $_[2];
 	my $saveFasta = $_[3];
-	system("bbmap.sh -Xmx70G ref=$tmpdir/viral.nuc.fna path=$outdir/virBbmap build=1 2>$outdir/makeVirBbmap.err");
+	system("bbmap.sh -Xmx50G ref=$tmpdir/viral.nuc.fna path=$outdir/virBbmap build=1 2>$outdir/makeVirBbmap.err");
 	if ($saveFasta) {
 		system("cat $tmpdir/viral.nuc.fna | lbzip2 -c -n $halfprocs > $outdir/viral.nuc.fna.bz2");
 	}
