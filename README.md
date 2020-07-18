@@ -78,7 +78,11 @@ Instructions have only been tested on a fresh Amazon Linux 2 image.<br />
 
 ### Initial Machine Setup
 
-Example command line input:<br />
+Example command line input for Amazon Linux 2:<br />
+
+#### Update machine
+`sudo yum -y update`
+
 #### Download and run installer
 `wget https://raw.githubusercontent.com/cmmr/virmap/master/virmapInstall.pl`<br />
 `chmod 0775 virmapInstall.pl`<br />
