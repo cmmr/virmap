@@ -91,6 +91,10 @@ Example command line input for Amazon Linux 2:<br />
 #### Install Virmap with dependancies
 `./virmapInstall.pl`
 
+#### Set TMPDIR to somewhere on /scratch
+`mkdir /scratch/tmp` (if it doesn't already exist) <br />
+`export TMPDIR=/scratch/tmp`
+
 #### Create DB (can take > 1h)
 `mkdir /scratch/VirmapDb`<br />
 `makeVirmapDb.pl --outputDir /scratch/VirmapDb`
@@ -102,10 +106,6 @@ Exit out of vdb-config by hitting 'x'
 #### Grab Viral mock community
 `mkdir /home/$USER/VirmapTest`<br />
 `fasterq-dump -t /dev/shm -e 4 -O /home/$USER/VirmapTest SRR9875293`
-
-#### Set TMPDIR to somewhere on /scratch
-`mkdir /scratch/tmp`<br />
-`export TMPDIR=/scratch/tmp`
 
 #### Test run viral mock community
 `Virmap.pl --threads $(nproc) --readF /home/$USER/VirmapTest/SRR9875293_1.fastq --readR /home/$USER/VirmapTest/SRR9875293_2.fastq --useMegahit --useBbnorm --sampleName SRR9875293 --outputDir /home/$USER/VirmapTest/VirmapRun --taxaJson /scratch/VirmapDb/Taxonomy.virmap --virDmnd /scratch/VirmapDb/virDmnd.dmnd --virBbmap /scratch/VirmapDb/virBbmap --gbBlastn /scratch/VirmapDb/gbBlastn --gbBlastx /scratch/VirmapDb/gbBlastx.dmnd 2>/home/$USER/VirmapTest/VirmapRun.err`
