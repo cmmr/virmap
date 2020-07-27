@@ -73,7 +73,7 @@ FAlite (http://korflab.ucdavis.edu/Unix_and_Perl/FAlite.pm)<br />
 ### Suggested Requirements
 r5d.24xlarge (recommended) or c5d.24xlarge.<br />
 Amazon Linux 2 (recommended) or Ubuntu.<br />
-Root volume size >30Gb<br \>
+Root volume size >30Gb<br />
 Local instance store SSD with >500 GB memory and 64GB RAM. As Genbank expands, the minimum SSD and RAM requirements will expand as well.<br />
 Instructions have only been tested on a fresh Amazon Linux 2 image.<br />
 
