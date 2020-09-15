@@ -105,7 +105,7 @@ system("cd $tmpdir/coreutils-8.32 && make install");
 #update perl 
 system("wget https://www.cpan.org/src/5.0/perl-5.30.2.tar.gz -O $tmpdir/perl-5.30.2.tar.gz");
 system("tar zxvf $tmpdir/perl-5.30.2.tar.gz -C $tmpdir");
-system("cd $tmpdir/perl-5.30.2 && ./Configure -Dcc=gcc -Dusethreads -Uuselargefiles -Dusemorebits -des");
+system("cd $tmpdir/perl-5.30.2 && ./Configure -Dcc=gcc -Dusethreads -Duselargefiles -Dusemorebits -des");
 system("cd $tmpdir/perl-5.30.2 && make -j$procs");
 system("cd $tmpdir/perl-5.30.2 && make test");
 system("cd $tmpdir/perl-5.30.2 && make install");
