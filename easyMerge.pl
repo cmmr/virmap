@@ -43,6 +43,7 @@ if ($sortThreads > 8) {
 	$sortThreads = 8;
 }
 my $tmpdir = tempdir( DIR => "/dev/shm", CLEANUP => 1);
+my $localTmpdir = tempdir(CLEANUP => 1);
 if (not $THREADS =~ m/^\d+$/ or $THREADS < 4) {
 	$THREADS = 4;
 }
@@ -108,12 +109,18 @@ for (my $i = 0; $i < $THREADS; $i++) {
 	$threads[$i] = threads->create(\&worker, $tmpdir);
 }
 system("makeblastdb -in $ARGV[0] -out $tmpdir/easyMergeDb -dbtype nucl 1>&2");
-my $blastout = `blastn -word_size $seed -query $tmpdir/easyMerge.query.fa -db $tmpdir/easyMergeDb -outfmt 6 -strand plus -ungapped -max_target_seqs 10000000`;
-my $dbHL = RocksDB->new("$tmpdir/HL", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
-my $dbRO = RocksDB->new("$tmpdir/RO", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
-my $dbAUX = RocksDB->new("$tmpdir/AUX", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
-my @lines = split /\n/, $blastout;
-$blastout = "";
+print STDERR "Finished Making BlastDb\n";
+system("blastn -word_size $seed -query $tmpdir/easyMerge.query.fa -db $tmpdir/easyMergeDb -outfmt 6 -strand plus -out $localTmpdir/blastn.out -ungapped -max_target_seqs 10000000");
+print STDERR "Finished self blast\n";
+#my $dbHL = RocksDB->new("$tmpdir/HL", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
+#my $dbRO = RocksDB->new("$tmpdir/RO", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
+#my $dbAUX = RocksDB->new("$tmpdir/AUX", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
+my $dbHL = RocksDB->new("$tmpdir/HL", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
+my $dbRO = RocksDB->new("$tmpdir/RO", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
+my $dbAUX = RocksDB->new("$tmpdir/AUX", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
+
+#my @lines = split /\n/, $blastout;
+#$blastout = "";
 my $results = {};
 my $highestLeft = {};
 my $rangeOrders = {};
@@ -127,10 +134,14 @@ my $merged = {};
 
 my $newLines = ();
 my $reinsert = 0;
-foreach my $rawline (@lines) {
+open IN, "$localTmpdir/blastn.out";
+#foreach my $rawline (@lines) {
+while (my $rawline = <IN>) {
+	chomp $rawline;
 	my $line = [split /\t/, $rawline];
-	my @oldParts = @$line;
-	push @{$newLines}, \@oldParts;
+	#my @oldParts = @$line;
+	#push @{$newLines}, \@oldParts;
+	push @{$newLines}, $line;
 	unless ($line->[1] =~ m/noChange=1/) {
 		next;
 	}
@@ -149,7 +160,8 @@ foreach my $rawline (@lines) {
 	$reinsert++;
 	push @{$newLines}, $line;
 }
-@lines = sort {$a->[0] cmp $b->[0] || $a->[6] <=> $b->[6]} @{$newLines};
+close IN;
+my @lines = sort {$a->[0] cmp $b->[0] || $a->[6] <=> $b->[6]} @{$newLines};
 undef($newLines);	
 my $noInstant = {};
 foreach my $line (@lines) {
