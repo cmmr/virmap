@@ -45,14 +45,14 @@ if ($linux eq "rh") {
 	}
 	system("sudo yum install -y epel-release");
 	system("sudo yum -y groupinstall \"Development Tools\"");
-	system("sudo yum -y install awscli cpan openssl-devel snappy snappy-devel zlib zlib-devel bzip2 bzip2-devel lz4-devel zstd.x86_64 lbzip2 lftp parallel java-devel pigz python3 nvme-cli");
+	system("sudo yum -y install awscli cpan openssl-devel snappy snappy-devel zlib zlib-devel bzip2 bzip2-devel lz4-devel zstd.x86_64 lbzip2 lftp parallel java-devel pigz python3 nvme-cli expat-devel");
 	system("sudo yum -y update");
 	system("sudo pip3 install --upgrade pip");
 } elsif ($linux eq "deb") {
 	system("sudo apt-get update");
 	system("sudo apt-get -y upgrade");
 	system("sudo apt-get -y install build-essential");
-	system("sudo apt-get -y install zstd libzstd-dev liblz4-dev libsnappy-dev zlib1g-dev libbz2-dev lbzip2 lftp parallel openjdk-8-jdk-headless pigz python3 python3-pip awscli nvme-cli libssl-dev");
+	system("sudo apt-get -y install zstd libzstd-dev liblz4-dev libsnappy-dev zlib1g-dev libbz2-dev lbzip2 lftp parallel openjdk-8-jdk-headless pigz python3 python3-pip awscli nvme-cli libssl-dev libexpat1-dev");
 	system("sudo apt-get update");
 	system("sudo apt-get -y upgrade");
 }
@@ -128,6 +128,8 @@ system("cpanm Sys::MemInfo");
 system("cpanm XML::Hash::XS");
 system("cpanm Cpanel::JSON::XS");
 system("cpanm Statistics::Basic");
+system("cpanm XML::Simple");
+
 
 #install other software
 system("mkdir -p /usr/local/virmap/src/");
@@ -152,6 +154,14 @@ system("ls /usr/local/virmap/src/ncbi-blast-2.10.0+/bin/* | xargs -I {} ln -s {}
 system("wget https://github.com/voutcn/megahit/releases/download/v1.1.4/megahit_v1.1.4_LINUX_CPUONLY_x86_64-bin.tar.gz -O $tmpdir/megahit_v1.1.4_LINUX_CPUONLY_x86_64-bin.tar.gz");
 system("tar zxvf $tmpdir/megahit_v1.1.4_LINUX_CPUONLY_x86_64-bin.tar.gz -C /usr/local/virmap/src/");
 system("ls /usr/local/virmap/src/megahit_v1.1.4_LINUX_CPUONLY_x86_64-bin/megahit* | xargs -I {} ln -s {} /usr/local/bin/");
+system("wget ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/edirect.tar.gz -O $tmpdir/edirect.tar.gz");
+system("tar zxvf $tmpdir/edirect.tar.gz -C /usr/local/virmap/src/");
+system("ln -s /usr/local/virmap/src/edirect/efetch /usr/local/bin/");
+system("ln -s /usr/local/virmap/src/edirect/edirect.pl /usr/local/bin/");
+
+
+
+
 if ($linux eq "rh") {
 	system("wget https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/2.10.6/setup-yum.sh -O $tmpdir/setup-yum.sh");
 	system("chmod 0775 $tmpdir/setup-yum.sh");
