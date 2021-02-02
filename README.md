@@ -46,6 +46,7 @@ normalize-by-median.py (https://github.com/dib-lab/khmer)<br />
 pigz (https://github.com/madler/pigz)<br />
 vsearch (https://github.com/torognes/vsearch)<br />
 zstd (https://github.com/facebook/zstd)<br />
+GNU parallel (https://www.gnu.org/software/parallel/)<br />
 
 CPAN Dependencies:<br />
 Compress::Zstd (https://metacpan.org/pod/Compress::Zstd)<br />
@@ -138,7 +139,13 @@ Local instance SSD >500GB.<br />
 
 4. Copy VirmapDB to scratch from your s3 space.
 
+
 5. Set TMPDIR to somewhere on /scratch.
 
 
 
+
+Virmap now uses GNU parallel in one of its substeps, please cite GNU parallel if you use Virmap.
+
+  O. Tange (2011): GNU Parallel - The Command-Line Power Tool,
+  ;login: The USENIX Magazine, February 2011:42-47.
