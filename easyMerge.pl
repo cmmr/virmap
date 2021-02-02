@@ -14,9 +14,10 @@ use Sereal;
 use FAlite;
 use IPC::Open2;
 use Time::HiRes qw(time usleep);
-
+use Sys::MemInfo qw(totalmem freemem totalswap);
 
 my $t1 = time();
+my $totalMem = totalmem();
 my $exactRatio = .03;
 my $zipperRatio = .03;
 my $maxOverlapError = .04;
@@ -28,19 +29,24 @@ my $lock :shared;
 my $THREADS = $ARGV[1];
 my $printedContig = 0;
 my $seed = 27;
-my $encoder = Sereal::Encoder->new();
+my $encoder = Sereal::Encoder->new({no_shared_hashkeys => 1});
 my $decoder = Sereal::Decoder->new();
 my $mer :shared;
 
-
-if ($THREADS > 12) {
-	$THREADS = 12;
+my $blastThreads = $THREADS;
+my $maxThreads = int($totalMem / 8);
+if ($THREADS > $maxThreads) {
+	$THREADS = $maxThreads;
+}
+my $maxBlastThreads = int($totalMem / 4);
+if ($blastThreads > $maxBlastThreads) {
+	$blastThreads = $maxBlastThreads;
 }
 
-
 my $sortThreads = $THREADS;
-if ($sortThreads > 8) {
-	$sortThreads = 8;
+my $maxSortThreads = int($totalMem / 3);
+if ($sortThreads > $maxSortThreads) {
+	$sortThreads = $maxSortThreads;
 }
 my $tmpdir = tempdir( DIR => "/dev/shm", CLEANUP => 1);
 my $localTmpdir = tempdir(CLEANUP => 1);
@@ -110,17 +116,16 @@ for (my $i = 0; $i < $THREADS; $i++) {
 }
 system("makeblastdb -in $ARGV[0] -out $tmpdir/easyMergeDb -dbtype nucl 1>&2");
 print STDERR "Finished Making BlastDb\n";
-system("blastn -word_size $seed -query $tmpdir/easyMerge.query.fa -db $tmpdir/easyMergeDb -outfmt 6 -strand plus -out $localTmpdir/blastn.out -ungapped -max_target_seqs 10000000");
+#system("blastn -word_size $seed -query $tmpdir/easyMerge.query.fa -db $tmpdir/easyMergeDb -outfmt 6 -strand plus -out $localTmpdir/blastn.out -ungapped -max_target_seqs 10000000 -num_threads $THREADS");
+system("cat $tmpdir/easyMerge.query.fa | paste - - | parallel --pipe -j$blastThreads --tmpdir $localTmpdir --group --block 15M 'tr \"\t\" \"\n\" | blastn -word_size $seed -db $tmpdir/easyMergeDb -query - -outfmt 6 -strand plus -ungapped -max_target_seqs 10000000' > $localTmpdir/blastn.out 2>/dev/null");
 print STDERR "Finished self blast\n";
-#my $dbHL = RocksDB->new("$tmpdir/HL", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
-#my $dbRO = RocksDB->new("$tmpdir/RO", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
-#my $dbAUX = RocksDB->new("$tmpdir/AUX", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true'});
-my $dbHL = RocksDB->new("$tmpdir/HL", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
-my $dbRO = RocksDB->new("$tmpdir/RO", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
-my $dbAUX = RocksDB->new("$tmpdir/AUX", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
+my $dbHL = RocksDB->new("$tmpdir/HL", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true', PrepareForBulkLoad => "true", IncreaseParallelism => "true"});
+my $dbRO = RocksDB->new("$tmpdir/RO", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true', PrepareForBulkLoad => "true", IncreaseParallelism => "true"});
+my $dbAUX = RocksDB->new("$tmpdir/AUX", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000, allow_mmap_reads => 'true', PrepareForBulkLoad => "true", IncreaseParallelism => "true"});
+#my $dbHL = RocksDB->new("$tmpdir/HL", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
+#my $dbRO = RocksDB->new("$tmpdir/RO", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
+#my $dbAUX = RocksDB->new("$tmpdir/AUX", { create_if_missing => 1, db_log_dir => "/dev/null", keep_log_file_num => 1, max_log_file_size => 1, db_stats_log_interval => 9999999, max_bytes_for_level_base => 100000000, target_file_size_base => 20000000});
 
-#my @lines = split /\n/, $blastout;
-#$blastout = "";
 my $results = {};
 my $highestLeft = {};
 my $rangeOrders = {};
@@ -135,13 +140,11 @@ my $merged = {};
 my $newLines = ();
 my $reinsert = 0;
 open IN, "$localTmpdir/blastn.out";
-#foreach my $rawline (@lines) {
+open OUT, ">$localTmpdir/blastn.temp.out";
 while (my $rawline = <IN>) {
 	chomp $rawline;
 	my $line = [split /\t/, $rawline];
-	#my @oldParts = @$line;
-	#push @{$newLines}, \@oldParts;
-	push @{$newLines}, $line;
+	print OUT "$rawline\n";
 	unless ($line->[1] =~ m/noChange=1/) {
 		next;
 	}
@@ -158,13 +161,16 @@ while (my $rawline = <IN>) {
 	$line->[8] = $Qstart;
 	$line->[9] = $Qend;
 	$reinsert++;
-	push @{$newLines}, $line;
+	my $newLine = join "\t", $line;
+	print OUT "$newLine\n";
 }
 close IN;
-my @lines = sort {$a->[0] cmp $b->[0] || $a->[6] <=> $b->[6]} @{$newLines};
-undef($newLines);	
+close OUT;
+system("cat $localTmpdir/blastn.temp.out | sort --buffer-size=40G --parallel=$sortThreads -k1,1 -k7,7n > $localTmpdir/blastn.sorted.out");
 my $noInstant = {};
-foreach my $line (@lines) {
+open IN, "$localTmpdir/blastn.sorted.out";
+while (my $rawline = <IN>) {
+	my $line = [split /\t/, $rawline];
 	if ($line->[0] eq $line->[1]) {
 		next;
 	}
@@ -229,8 +235,11 @@ foreach my $line (@lines) {
 	$hits->{$line->[0]}->{$line->[1]}->{"$line->[6]..$line->[7]"}->{"$line->[8]..$line->[9]"} = $line->[11];
 	$identities->{$line->[0]}->{$line->[1]} += ($line->[11]);
 }
+close IN;
 print STDERR "$instant contigs instantly absorbed\n";
-foreach my $line (@lines) {
+open IN, "$localTmpdir/blastn.sorted.out";
+while (my $rawline = <IN>) {
+	my $line = [split /\t/, $rawline];
 	if ($line->[0] eq $line->[1]) {
 		next;
 	}
@@ -256,8 +265,8 @@ foreach my $line (@lines) {
 		$highestLeft->{$line->[0]}->{$line->[1]} = $line->[6];
 	}
 }
+close IN;
 undef($hits);
-undef(@lines);
 open IN, "cat $ARGV[0] |";
 $fasta_file = new FAlite(\*IN); # or any other filehandle
 while (my $entry = $fasta_file->nextEntry) {
@@ -282,8 +291,10 @@ while (my $entry = $fasta_file->nextEntry) {
 		print "$seq\n";
 		next;
 	}	
+	my $seqSize = () = $seq =~ /[^Nn]/gi;
+	$dbAUX->put("$def", $encoder->encode([$seq, $seqSize]));
 	$seqs->{$def} = $seq;
-	$sizes->{$def} = () = $seq =~ /[^Nn]/gi;
+	$sizes->{$def} = $seqSize;
 
 }
 close IN;
@@ -298,8 +309,10 @@ foreach my $key (keys %$results) {
 		die "$key isn't in sizes\n";
 	}
 }
-$dbAUX->put("seqs", compress($encoder->encode($seqs)));
-$dbAUX->put("sizes", compress($encoder->encode($sizes)));
+#$dbAUX->put("seqs", compress_mt($encoder->encode($seqs), $THREADS));
+#$dbAUX->put("sizes", compress_mt($encoder->encode($sizes), $THREADS));
+#$dbAUX->put("seqs", $encoder->encode($seqs));
+#$dbAUX->put("sizes", $encoder->encode($seqs));
 my @order = sort {$sizes->{$b} <=> $sizes->{$a}} keys %$results;
 
 
@@ -336,7 +349,10 @@ foreach my $centroid (@order) {
 		$threadIdx++;
 	}
 }
-
+$t2 = time();
+$elapsed = $t2 - $t1;
+print STDERR "Organizing jobs: $elapsed seconds\n";
+$t1 = $t2;
 my $indexPerCentroid = {};
 foreach my $centroid (@order) {
 	if (not exists $jobs->{$centroid}) {
@@ -351,6 +367,10 @@ foreach my $centroid (@order) {
 	my @centroidOrder = sort {$jobs->{$centroid}->{$a} <=> $jobs->{$centroid}->{$b}} keys %{$jobs->{$centroid}};
 	$indexPerCentroid->{$centroid} = \@centroidOrder;
 }
+$t2 = time();
+$elapsed = $t2 - $t1;
+print STDERR "Pruning jobs: $elapsed seconds\n";
+$t1 = $t2;
 my $queuedJobs = 0;
 my $queue = {};
 while ($queuedJobs < $threadIdx) {
@@ -375,17 +395,77 @@ while ($queuedJobs < $threadIdx) {
 		}
 	}
 }
-$dbAUX->put("queue", compress($encoder->encode($queue)));
+$t2 = time();
+$elapsed = $t2 - $t1;
+print STDERR "Queueing jobs: $elapsed seconds\n";
+$t1 = $t2;
+#$dbAUX->put("queue", compress_mt($encoder->encode($queue), $THREADS));
+$dbAUX->put("queue", $encoder->encode($queue));
+$t2 = time();
+$elapsed = $t2 - $t1;
+print STDERR "RocksDb queue: $elapsed seconds\n";
+$t1 = $t2;
+my $batch = RocksDB::WriteBatch->new;
+my $batchCount = 0;
+my $b1 = time();
+my $totalHL = scalar keys %$highestLeft;
+print STDERR "totalHL = $totalHL\n";
 foreach my $head (keys %$highestLeft) {
-	my $compressed = compress($encoder->encode($highestLeft->{$head}));
-	$dbHL->put("$head", $compressed);
+	#my $compressed = compress_mt($encoder->encode($highestLeft->{$head}), $THREADS);
+	#$dbHL->put("$head", $compressed);
+	#$dbHL->put("$head", compress_mt($encoder->encode($highestLeft->{$head}), $THREADS));
+	#$batch->put("$head", compress_mt($encoder->encode($highestLeft->{$head}), $THREADS));
+	$batch->put("$head", $encoder->encode($highestLeft->{$head}));
+	$batchCount++;
+	if ($batchCount % 30000 == 0) {
+		my $b2 = time();
+		my $belapsed = $b2 - $b1;
+		$b1 = $b2;
+		print STDERR "$belapsed seconds to $batchCount/$totalHL entries into batch\n";
+		$dbHL->write($batch);
+		$batch = RocksDB::WriteBatch->new;
+		$b2 = time();
+		$belapsed = $b2 - $b1;
+		print STDERR "$belapsed seconds write batch to db\n";
+	}
 }
+$dbHL->write($batch);
+$batch = RocksDB::WriteBatch->new;
+$batchCount = 0;
+$t2 = time();
+$elapsed = $t2 - $t1;
+print STDERR "RocksDb copy highestLeft: $elapsed seconds\n";
+$t1 = $t2;
 undef($highestLeft);
+$b1 = time();
+my $totalRO = scalar(keys %$rangeOrders);
+print "totalRO = $totalRO\n";
 foreach my $head (keys %$rangeOrders) {
-	my $compressed = compress($encoder->encode($rangeOrders->{$head}));
-	$dbRO->put("$head", $compressed);
+	#my $compressed = compress_mt($encoder->encode($rangeOrders->{$head}), $THREADS);
+	#$dbRO->put("$head", $compressed);
+	#$dbRO->put("$head", compress_mt($encoder->encode($rangeOrders->{$head}), $THREADS));
+	#$batch->put("$head", compress_mt($encoder->encode($rangeOrders->{$head}), $THREADS));
+	$batch->put("$head", $encoder->encode($rangeOrders->{$head}));
+	$batchCount++;
+	if ($batchCount % 30000 == 0) {
+		my $b2 = time();
+		my $belapsed = $b2 - $b1;
+		$b1 = $b2;
+		print STDERR "$belapsed seconds to $batchCount/$totalRO entries into batch\n";
+		$dbRO->write($batch);
+		$batch = RocksDB::WriteBatch->new;
+		$b2 = time();
+		$belapsed = $b2 - $b1;
+		print STDERR "$belapsed seconds write batch to db\n";
+	}
 }
+$dbRO->write($batch);
+undef($batch);
 undef($rangeOrders);
+$t2 = time();
+$elapsed = $t2 - $t1;
+print STDERR "RocksDb copy rangeOrders: $elapsed seconds\n";
+$t1 = $t2;
 $dbHL->compact_range;
 $dbRO->compact_range;
 $dbAUX->compact_range;
@@ -394,8 +474,12 @@ undef($dbRO);
 undef($dbAUX);
 $t2 = time();
 $elapsed = $t2 - $t1;
-print STDERR "setting up threads and database structures: $elapsed seconds\n";
+print STDERR "RocksDb packing: $elapsed seconds\n";
 $t1 = $t2;
+#$t2 = time();
+#$elapsed = $t2 - $t1;
+#print STDERR "setting up threads and database structures: $elapsed seconds\n";
+#$t1 = $t2;
 print STDERR "total jobs = $threadIdx\n";
 undef($results);
 for (my $i = 0; $i < $THREADS; $i++) {
@@ -413,6 +497,8 @@ my $goodTime = 0;
 my $mergedCount = 0;
 my $deleted = {};
 my $timeDelete = time;
+my $finishedJobs = 0;
+my $threshold = int (.10 * $threadIdx);
 while (1) {
 	my $evalQCount = $evalQ->pending();
 	my $returnQCount = $returnQ->pending();
@@ -427,6 +513,7 @@ while (1) {
 				$undefCount++;
 				next;
 			}
+			$finishedJobs++;
 			$jobReturn = $decoder->decode($jobReturn);
 			$buffer->{$jobReturn->[0]} = $jobReturn;
 			if ($jobReturn->[0] < $lowest) {
@@ -488,19 +575,43 @@ while (1) {
 		$mergedCount++;
 	}	
 	my $timeAfter = time;
-	if ($timeAfter - $timeDelete > 60) {
+	if ($timeAfter - $timeDelete > 360 or $finishedJobs > $threshold) {
+		print STDERR "Pruning remaining jobs, finished $finishedJobs so far.\n";
+		my $prune0 = time();
 		lock($evalQ);
+		my $prune1 = time();
+		my $lockTime = $prune1 - $prune0;
+		print STDERR "lock time = $lockTime\n";
 		my $pending = $evalQ->pending();
+		print STDERR "$pending jobs pending\n";
+		my $prune2 = time();
+		my $ptime = $prune2 - $prune1;
+		print STDERR "pend time = $ptime\n";
+		my $deletedCount = 0;
 		if ($pending) {
 			my @remain = $evalQ->extract(0, $pending);
+			my $prune3 = time();
 			foreach my $jobRemain (@remain) {
 				if (defined $jobRemain and (exists $merged->{$queue->{$jobRemain}->[0]} or exists $merged->{$queue->{$jobRemain}->[1]})) {
 					my $failResult = [$jobRemain, 1, $queue->{$jobRemain}->[0], $queue->{$jobRemain}->[1], ["DELETED"], "", "", 0, "0 seconds", 0];
+					$deletedCount++;
 					$buffer->{$jobRemain} = $failResult;
 				} else {
 					$evalQ->enqueue($jobRemain);
 				}
 			}
+			my $prune4 = time();
+			my $etime = $prune3 - $prune2;
+			my $pruneTime = $prune4 - $prune3;
+			print STDERR "extract time = $etime\n";
+			print STDERR "prune time = $pruneTime\n";
+		}
+		print STDERR "deleted $deletedCount/$pending jobs\n";
+		my $remaining = $pending - $deletedCount;
+		if ($finishedJobs < $threshold) {
+			$threshold += int(.10 * $threadIdx);
+		} else {
+			$threshold = $finishedJobs + int(.10 * $threadIdx);
 		}
 		$timeDelete = time;
 	}
@@ -527,11 +638,14 @@ sub worker {
 	{lock($lock);
 	$dbAUX = RocksDB->new("$tmpdir/AUX", { read_only => 1, db_log_dir => '/dev/null', keep_log_file_num => 1, allow_mmap_reads => 'true'}) or die "can't open DB\n";
 	}
-	my $queue = $decoder->decode(decompress($dbAUX->get("queue")));
-	my $highestLeft = {};
-	my $rangeOrders = {};
-	my $localSizes = $decoder->decode(decompress($dbAUX->get("sizes")));
-	my $localSeqs = $decoder->decode(decompress($dbAUX->get("seqs")));
+	#my $queue = $decoder->decode(decompress($dbAUX->get("queue")));
+	my $queue = $decoder->decode($dbAUX->get("queue"));
+	#my $highestLeft = {};
+	#my $rangeOrders = {};
+	#my $localSizes = $decoder->decode(decompress($dbAUX->get("sizes")));
+	#my $localSeqs = $decoder->decode(decompress($dbAUX->get("seqs")));
+	#my $localSizes = $decoder->decode($dbAUX->get("sizes"));
+	#my $localSeqs = $decoder->decode($dbAUX->get("seqs"));
 	my $tid = threads->tid();
 	while (1) {
 		my $jobIdx = $evalQ->dequeue();
@@ -548,10 +662,20 @@ sub worker {
 		my $job = $queue->{$jobIdx};
 		my $centroid = $job->[0];
 		my $hit = $job->[1];
+		my $localAux = $decoder->decode($dbAUX->get($centroid));
+		my $localSizes = {};
+		my $localSeqs = {};
+		$localSizes->{$centroid} = $localAux->[1];
+		$localSeqs->{$centroid} = $localAux->[0];
+		$localAux = $decoder->decode($dbAUX->get($hit));
+		$localSizes->{$hit} = $localAux->[1];
+                $localSeqs->{$hit} = $localAux->[0];
 		my $messages = [];
+		my $failResult = [$jobIdx, 1, $centroid, $hit, $messages, "", "", $tid];
+		my $highestLeft = {};
+		my $rangeOrders = {};
 		my $seconds = 0;
 		my $timeRaw = 0;
-		my $failResult = [$jobIdx, 1, $centroid, $hit, $messages, "", "", $tid];
 		my $mergeRatio = $exactRatio; 
 		my $mergeZipper = $zipperRatio;
 		
@@ -566,12 +690,16 @@ sub worker {
 		my $left = $centroid;
 		my $right = $hit;
 		unless (exists $highestLeft->{$centroid}) {
-			$highestLeft->{$centroid} = $decoder->decode(decompress($dbHL->get("$centroid")));
-			$rangeOrders->{$centroid} = $decoder->decode(decompress($dbRO->get("$centroid")));
+			#$highestLeft->{$centroid} = $decoder->decode(decompress($dbHL->get("$centroid")));
+			#$rangeOrders->{$centroid} = $decoder->decode(decompress($dbRO->get("$centroid")));
+			$highestLeft->{$centroid} = $decoder->decode($dbHL->get("$centroid"));
+			$rangeOrders->{$centroid} = $decoder->decode($dbRO->get("$centroid"));
 		}
 		unless (exists $highestLeft->{$hit}) {
-			$highestLeft->{$hit} = $decoder->decode(decompress($dbHL->get("$hit")));
-			$rangeOrders->{$hit} = $decoder->decode(decompress($dbRO->get("$hit")));
+			#$highestLeft->{$hit} = $decoder->decode(decompress($dbHL->get("$hit")));
+			#$rangeOrders->{$hit} = $decoder->decode(decompress($dbRO->get("$hit")));
+			$highestLeft->{$hit} = $decoder->decode($dbHL->get("$hit"));
+			$rangeOrders->{$hit} = $decoder->decode($dbRO->get("$hit"));
 		}
 		if ($highestLeft->{$centroid}->{$hit} < $highestLeft->{$hit}->{$centroid}) {
 			$left = $hit;
